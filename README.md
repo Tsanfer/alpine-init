@@ -1,14 +1,14 @@
 # Alpine Server Init
 
-alpine-server-init.sh 是一个面向 Alpine Linux 服务器的交互式初始化脚本。
+alpine-init.sh 是一个面向 Alpine Linux 服务器的交互式初始化脚本。
 
 ## 快速开始
 
 使用 root 执行：
 
 ~~~sh
-chmod +x /root/alpine-server-init.sh
-sh /root/alpine-server-init.sh
+chmod +x /root/alpine-init.sh
+sh /root/alpine-init.sh
 ~~~
 
 脚本启动时会先选择服务器网络环境：
@@ -167,10 +167,10 @@ SSH 登录策略默认开启：
 示例：
 
 ~~~sh
-sh /root/alpine-server-init.sh --region cn
-sh /root/alpine-server-init.sh --region global
-sh /root/alpine-server-init.sh --region cn --docker-mirrors "https://docker.m.daocloud.io"
-sh /root/alpine-server-init.sh --region global -y
+sh /root/alpine-init.sh --region cn
+sh /root/alpine-init.sh --region global
+sh /root/alpine-init.sh --region cn --docker-mirrors "https://docker.m.daocloud.io"
+sh /root/alpine-init.sh --region global -y
 ~~~
 
 ## 注意事项
