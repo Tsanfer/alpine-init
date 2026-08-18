@@ -28,7 +28,7 @@ usage() {
 Alpine server init script
 
 Usage:
-  sh alpine-server-init.sh [options]
+  sh alpine-init.sh [options]
 
 Options:
   -r, --region cn|global       运行环境：cn=国内，global=国外/海外
@@ -40,10 +40,10 @@ Options:
   -h, --help                   显示帮助
 
 Examples:
-  sh alpine-server-init.sh
-  sh alpine-server-init.sh --region cn -y
-  sh alpine-server-init.sh --region cn --docker-mirror https://docker.m.daocloud.io
-  sh alpine-server-init.sh --region global -y
+  sh alpine-init.sh
+  sh alpine-init.sh --region cn -y
+  sh alpine-init.sh --region cn --docker-mirror https://docker.m.daocloud.io
+  sh alpine-init.sh --region global -y
 EOF
 }
 
