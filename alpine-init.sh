@@ -190,9 +190,10 @@ show_action_menu() {
     printf " 11) 安装 Docker/Compose\t[当前：%s]\n" "$(docker_install_status)"
     printf " 12) 配置 Docker 镜像加速\n"
     printf " 13) 安装常用容器\n"
-    printf " 14) 调整时区\n"
-    printf " 15) 调整主机名\n"
-    printf " 16) 重启服务器\n"
+    printf " 14) 管理 Docker 容器\n"
+    printf " 15) 调整时区\n"
+    printf " 16) 调整主机名\n"
+    printf " 17) 重启服务器\n"
     printf "  0) 退出（也可输入 q）\n"
     printf "----------------------------------------\n"
 }
@@ -681,6 +682,134 @@ install_common_docker_containers() {
                 warn "无效容器编号：$container_choice"
                 ;;
         esac
+    done
+}
+
+manage_docker_containers() {
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "未找到 Docker，请先执行第 11 项安装 Docker / Compose"
+        return 1
+    fi
+
+    if ! docker info >/dev/null 2>&1; then
+        warn "Docker 服务未运行或当前用户无权访问 Docker"
+        return 1
+    fi
+
+    while :; do
+        printf "\n----------------------------------------\n"
+        printf "Docker 容器管理\n"
+        printf "----------------------------------------\n"
+        container_names="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+        if [ -z "$container_names" ]; then
+            warn "当前没有 Docker 容器"
+            return 2
+        fi
+
+        container_index=0
+        for container_name in $container_names; do
+            container_index=$((container_index + 1))
+            container_status="$(docker ps -a --filter "name=^/$container_name$" --format '{{.Status}}' 2>/dev/null | sed -n '1p')"
+            printf "  %2s) %-24s\t%s\n" "$container_index" "$container_name" "$container_status"
+        done
+
+        printf "请输入容器编号（0/q 返回主菜单）: "
+        read -r selected_index || selected_index="0"
+        if has_nonprintable_input "$selected_index"; then
+            continue
+        fi
+        case "$selected_index" in
+            0|q|Q)
+                return 2
+                ;;
+        esac
+
+        case "$selected_index" in
+            ''|*[!0-9]*)
+                warn "请输入有效的容器编号"
+                continue
+                ;;
+        esac
+
+        selected_container=""
+        container_index=0
+        for container_name in $container_names; do
+            container_index=$((container_index + 1))
+            if [ "$container_index" -eq "$selected_index" ]; then
+                selected_container="$container_name"
+                break
+            fi
+        done
+
+        if [ -z "$selected_container" ]; then
+            warn "无效容器编号：$selected_index"
+            continue
+        fi
+
+        while :; do
+            printf "\n容器：%s\n" "$selected_container"
+            printf "  1) 启动容器\n"
+            printf "  2) 停止容器\n"
+            printf "  3) 重启容器\n"
+            printf "  4) 删除容器\n"
+            printf "  0) 返回容器列表（q 也可以）\n"
+            printf "请输入操作编号: "
+            read -r container_action || container_action="0"
+            if has_nonprintable_input "$container_action"; then
+                continue
+            fi
+
+            case "$container_action" in
+                1)
+                    if docker start "$selected_container"; then
+                        log "容器已启动：$selected_container"
+                    else
+                        warn "容器启动失败：$selected_container"
+                    fi
+                    break
+                    ;;
+                2)
+                    if docker stop "$selected_container"; then
+                        log "容器已停止：$selected_container"
+                    else
+                        warn "容器停止失败：$selected_container"
+                    fi
+                    break
+                    ;;
+                3)
+                    if docker restart "$selected_container"; then
+                        log "容器已重启：$selected_container"
+                    else
+                        warn "容器重启失败：$selected_container"
+                    fi
+                    break
+                    ;;
+                4)
+                    warn "删除操作只移除容器，不会自动删除数据卷或绑定目录"
+                    printf "确认删除容器 %s？输入 y 继续，直接回车取消: " "$selected_container"
+                    read -r confirm_delete || confirm_delete=""
+                    if [ "$confirm_delete" = "y" ] || [ "$confirm_delete" = "Y" ]; then
+                        if docker rm -f "$selected_container"; then
+                            log "容器已删除：$selected_container"
+                            if [ "$selected_container" = "nginx-proxy-manager" ]; then
+                                log "nginx-proxy-manager 配置和数据目录仍保留，可从第 13 项重新部署"
+                            fi
+                        else
+                            warn "容器删除失败：$selected_container"
+                        fi
+                    else
+                        warn "已取消删除容器"
+                    fi
+                    break
+                    ;;
+                0|q|Q)
+                    break
+                    ;;
+                *)
+                    warn "无效操作编号：$container_action"
+                    ;;
+            esac
+        done
     done
 }
 
@@ -1919,12 +2048,19 @@ execute_action() {
             fi
             ;;
         14)
-            configure_timezone
+            if [ "$SKIP_DOCKER" -eq 1 ]; then
+                warn "按参数跳过：管理 Docker 容器"
+            else
+                manage_docker_containers
+            fi
             ;;
         15)
-            configure_hostname
+            configure_timezone
             ;;
         16)
+            configure_hostname
+            ;;
+        17)
             reboot_server
             ;;
         *)
@@ -1937,7 +2073,7 @@ run_all_actions() {
     for action in 1 4 5 6 7 8 9 10 11 12; do
         execute_action "$action"
     done
-    warn "SSH、Swap / zswap、常用 Docker 容器、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、13、14、15、16 项"
+    warn "SSH、Swap / zswap、常用 Docker 容器、Docker 容器管理、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、13、14、15、16、17 项"
 }
 
 pause_before_menu() {
@@ -1958,7 +2094,7 @@ menu_loop() {
                 log "退出初始化菜单"
                 break
                 ;;
-            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)
+            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)
                 if execute_action "$ACTION"; then
                     action_status=0
                 else
