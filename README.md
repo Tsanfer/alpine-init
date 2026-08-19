@@ -7,16 +7,16 @@
 国内环境运行：
 
 ~~~sh
-sh -c "$(curl -fsSL 'https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
+sh -c "$(wget -qO- 'https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
 ~~~
 
 国外/海外环境运行：
 
 ~~~sh
-sh -c "$(curl -fsSL 'https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
+sh -c "$(wget -qO- 'https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
 ~~~
 
-如果没有 curl，可将 `curl -fsSL URL` 替换为 `wget -qO- URL`。
+如果没有 wget，可将 `wget -qO- URL` 替换为 `curl -fsSL URL`。
 
 也可以使用下面的完整脚本，根据提示选择网络地址，并自动在 curl 和 wget 之间切换：
 ~~~
