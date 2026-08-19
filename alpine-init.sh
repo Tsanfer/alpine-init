@@ -626,7 +626,7 @@ install_base_software() {
             common_input="all"
             log "非交互模式，默认安装全部基础软件"
         else
-            printf "请输入编号（空格或逗号分隔，输入 all 全选，直接回车返回）: "
+            printf "请输入编号（空格或逗号分隔，输入 a 全选，直接回车返回）: "
             read -r common_input || common_input=""
             if [ -z "$common_input" ]; then
                 warn "已取消基础软件安装"
@@ -740,7 +740,7 @@ install_common_software() {
             common_input="all"
             log "非交互模式，默认安装全部常用软件"
         else
-            printf "请输入编号（空格或逗号分隔，输入 all 全选，直接回车返回）: "
+            printf "请输入编号（空格或逗号分隔，输入 a 全选，直接回车返回）: "
             read -r common_input || common_input=""
             if [ -z "$common_input" ]; then
                 warn "已取消常用软件安装"
