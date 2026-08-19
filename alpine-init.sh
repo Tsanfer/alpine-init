@@ -483,10 +483,10 @@ install_common_docker_containers() {
             container_choice="1"
             log "非交互模式，选择 nginx-proxy-manager"
         else
-            printf "请输入编号（直接回车默认选择 nginx-proxy-manager，输入 0 返回）: "
+            printf "请输入编号（直接回车返回，输入 1 安装 nginx-proxy-manager）: "
             read -r container_choice || container_choice="0"
             if [ -z "$container_choice" ]; then
-                container_choice="1"
+                container_choice="0"
             fi
         fi
 
@@ -887,9 +887,9 @@ upgrade_alpine_system() {
         printf "  2) 仅升级当前发行版\n"
         printf "  3) 更新内核并切换到最新稳定发行版（不支持自动从 edge 切换）\n"
         printf "  0) 取消\n"
-        printf "请输入编号 [1]: "
+        printf "请输入编号 [0]: "
         read -r upgrade_choice || upgrade_choice=""
-        case "${upgrade_choice:-1}" in
+        case "${upgrade_choice:-0}" in
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
             3) warn "当前为 edge，已取消跨发行版切换"; return 0 ;;
@@ -906,9 +906,9 @@ upgrade_alpine_system() {
             printf "  3) 更新内核并升级到目标发行版\n"
         fi
         printf "  0) 取消\n"
-        printf "请输入编号 [3]: "
+        printf "请输入编号 [0]: "
         read -r upgrade_choice || upgrade_choice=""
-        case "${upgrade_choice:-3}" in
+        case "${upgrade_choice:-0}" in
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
             3) upgrade_mode="release" ;;
