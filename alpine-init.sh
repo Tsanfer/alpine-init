@@ -168,7 +168,8 @@ show_action_menu() {
     printf "  12) 配置 SSH Root/密码/密钥登录\n"
     printf "  13) 安装 Docker / Compose\n"
     printf "  14) 配置 Docker 镜像加速并自动检测\n"
-    printf "  15) 重启服务器\n"
+    printf "  15) 安装常用 Docker 容器\n"
+    printf "  16) 重启服务器\n"
     printf "  0) 退出\n"
 }
 
@@ -400,6 +401,112 @@ detect_docker_mirror() {
     else
         warn "Docker 当前未运行，配置已写入 /etc/docker/daemon.json，等 Docker 启动后自动生效"
     fi
+}
+
+docker_compose_command() {
+    if docker compose version >/dev/null 2>&1; then
+        printf 'docker compose'
+    elif command -v docker-compose >/dev/null 2>&1; then
+        printf 'docker-compose'
+    else
+        return 1
+    fi
+}
+
+install_nginx_proxy_manager() {
+    container_dir="/opt/nginx-proxy-manager"
+    compose_file="$container_dir/docker-compose.yml"
+
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "未找到 Docker，请先执行第 13 项安装 Docker / Compose"
+        return 1
+    fi
+
+    compose_command="$(docker_compose_command || true)"
+    if [ -z "$compose_command" ]; then
+        warn "未找到 Docker Compose，请先执行第 13 项安装 Docker / Compose"
+        return 1
+    fi
+
+    if ! docker info >/dev/null 2>&1; then
+        warn "Docker 服务未运行或当前用户无权访问 Docker"
+        return 1
+    fi
+
+    mkdir -p "$container_dir/data" "$container_dir/letsencrypt"
+    if [ -f "$compose_file" ]; then
+        warn "已发现现有配置：$compose_file"
+        log "将使用现有配置启动 nginx-proxy-manager"
+    else
+        cat > "$compose_file" <<'EOF'
+services:
+  app:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+EOF
+        log "已生成 Docker Compose 配置：$compose_file"
+    fi
+
+    log "启动 nginx-proxy-manager"
+    if ! $compose_command -f "$compose_file" up -d; then
+        warn "nginx-proxy-manager 启动失败，请检查 80、81、443 端口是否被占用"
+        return 1
+    fi
+
+    if $compose_command -f "$compose_file" ps; then
+        log "nginx-proxy-manager 已启动"
+        log "管理面板地址：http://服务器IP:81"
+        log "数据目录：$container_dir/data"
+        log "证书目录：$container_dir/letsencrypt"
+    else
+        warn "容器已尝试启动，但状态检查失败"
+        return 1
+    fi
+}
+
+install_common_docker_containers() {
+    log "选择常用 Docker 容器"
+    printf "\n可安装的容器：\n"
+    printf "  1) nginx-proxy-manager - Web 反向代理、SSL 证书和域名管理\n"
+
+    while :; do
+        if [ "$ASSUME_YES" -eq 1 ]; then
+            container_choice="1"
+            log "非交互模式，选择 nginx-proxy-manager"
+        else
+            printf "请输入编号（直接回车默认选择 nginx-proxy-manager，输入 0 返回）: "
+            read -r container_choice || container_choice="0"
+            if [ -z "$container_choice" ]; then
+                container_choice="1"
+            fi
+        fi
+
+        case "$container_choice" in
+            1)
+                printf "\n即将部署：nginx-proxy-manager\n"
+                printf "镜像：jc21/nginx-proxy-manager:latest\n"
+                printf "端口：80（HTTP）、81（管理面板）、443（HTTPS）\n"
+                printf "目录：/opt/nginx-proxy-manager/data 和 /opt/nginx-proxy-manager/letsencrypt\n"
+                install_nginx_proxy_manager
+                return
+                ;;
+            0)
+                log "已取消常用 Docker 容器安装"
+                return 0
+                ;;
+            *)
+                warn "无效容器编号：$container_choice"
+                ;;
+        esac
+    done
 }
 
 ensure_download_tools() {
@@ -1535,6 +1642,13 @@ execute_action() {
             fi
             ;;
         15)
+            if [ "$SKIP_DOCKER" -eq 1 ]; then
+                warn "按参数跳过：安装常用 Docker 容器"
+            else
+                install_common_docker_containers
+            fi
+            ;;
+        16)
             reboot_server
             ;;
         *)
@@ -1547,7 +1661,7 @@ run_all_actions() {
     for action in 1 2 3 4 5 6 7 10 11 13 14; do
         execute_action "$action"
     done
-    warn "时区、主机名、SSH 登录配置和重启需要交互输入，自动模式已跳过第 8、9、12、15 项"
+    warn "时区、主机名、SSH 登录、常用 Docker 容器和重启需要交互输入，自动模式已跳过第 8、9、12、15、16 项"
 }
 
 pause_before_menu() {
@@ -1566,7 +1680,7 @@ menu_loop() {
                 log "退出初始化菜单"
                 break
                 ;;
-            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)
+            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)
                 if execute_action "$ACTION"; then
                     log "任务执行结束，返回菜单"
                 else
