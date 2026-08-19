@@ -72,7 +72,8 @@ fi
 | 12 | 配置 SSH Root、密码和密钥登录 |
 | 13 | 安装 Docker / Compose |
 | 14 | 配置 Docker 镜像加速并自动检测 |
-| 15 | 重启服务器 |
+| 15 | 安装常用 Docker 容器 |
+| 16 | 重启服务器 |
 | 0 | 退出 |
 
 ### 基础软件
@@ -100,6 +101,19 @@ fi
 - pip3：Python 3 软件包安装工具，实际安装 Alpine 的 py3-pip 包
 
 国内环境安装完成后会自动配置软件源。
+
+### 常用 Docker 容器
+
+第 15 项用于安装常用 Docker 容器，目前提供 `nginx-proxy-manager`：
+
+- 镜像：`jc21/nginx-proxy-manager:latest`
+- HTTP 端口：`80`
+- 管理面板端口：`81`
+- HTTPS 端口：`443`
+- 数据目录：`/opt/nginx-proxy-manager/data`
+- 证书目录：`/opt/nginx-proxy-manager/letsencrypt`
+
+管理面板地址为 `http://服务器IP:81`。安装前会显示镜像、端口和目录信息，直接回车默认选择 nginx-proxy-manager。执行前需要先完成第 13 项 Docker / Compose 安装，并确认 80、81、443 端口没有被其他服务占用。
 
 ## 命令参数
 
