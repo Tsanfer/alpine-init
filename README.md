@@ -102,6 +102,13 @@ fi
 
 国内环境安装完成后会自动配置软件源。
 
+### 回车默认行为
+
+- 基础软件、常用软件：直接回车默认全选安装。
+- 常用 Docker 容器：直接回车返回，不部署容器；输入编号后才执行。
+- Alpine 系统、内核和发行版升级：直接回车取消，输入编号后才执行。
+- SSH、时区、主机名、Swap / zswap、tun 和重启等会影响系统状态的功能：需要根据提示明确确认或输入，直接回车不会执行关键变更。
+
 ### 常用 Docker 容器
 
 第 15 项用于安装常用 Docker 容器，目前提供 `nginx-proxy-manager`：
@@ -113,7 +120,7 @@ fi
 - 数据目录：`/opt/nginx-proxy-manager/data`
 - 证书目录：`/opt/nginx-proxy-manager/letsencrypt`
 
-管理面板地址为 `http://服务器IP:81`。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。安装前会显示镜像、端口和目录信息，直接回车默认选择 nginx-proxy-manager。执行前需要先完成第 13 项 Docker / Compose 安装，并确认 80、81、443 端口没有被其他服务占用。
+管理面板地址为 `http://服务器IP:81`。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。安装前会显示镜像、端口和目录信息，直接回车返回，不部署容器；输入 `1` 才安装 nginx-proxy-manager。执行前需要先完成第 13 项 Docker / Compose 安装，并确认 80、81、443 端口没有被其他服务占用。
 
 ## 命令参数
 
