@@ -464,6 +464,7 @@ EOF
     if $compose_command -f "$compose_file" ps; then
         log "nginx-proxy-manager 已启动"
         log "管理面板地址：http://服务器IP:81"
+        log "首次登录默认账号：admin@example.com，默认密码：changeme，请立即修改"
         log "数据目录：$container_dir/data"
         log "证书目录：$container_dir/letsencrypt"
     else
