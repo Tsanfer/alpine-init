@@ -1,10 +1,24 @@
-# Alpine Server Init
+# Alpine Init
 
-alpine-init.sh 是一个面向 Alpine Linux 服务器的交互式初始化脚本。
+一个面向 Alpine Linux 服务器的交互式初始化脚本。
 
 ## 快速开始
 
-直接从网络拉取并执行最新脚本：
+国内环境运行：
+
+~~~sh
+f="$(mktemp)" && curl -fsSL "https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh" -o "$f" && sh "$f"
+~~~
+
+国外/海外环境运行：
+
+~~~sh
+f="$(mktemp)" && curl -fsSL "https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh" -o "$f" && sh "$f"
+~~~
+
+如果没有 curl，可将上述命令中的下载部分替换为 wget -qO "$f" URL。
+
+也可以使用下面的完整脚本，根据提示选择网络地址，并自动在 curl 和 wget 之间切换：
 
 ~~~sh
 printf "是否从国内代理拉取脚本？[Y/n] "
