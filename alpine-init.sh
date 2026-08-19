@@ -120,22 +120,36 @@ ask_region() {
         return
     fi
 
-    printf '请选择服务器网络环境：\n'
-    printf '  1) 国内/中国大陆\n'
-    printf '  2) 国外/海外\n'
-    printf '输入序号 [1]: '
-    read -r choice
-    case "${choice:-1}" in
-        1|cn|CN|china|China)
-            REGION="cn"
-            ;;
-        2|global|GLOBAL|abroad|Abroad|oversea|Oversea)
-            REGION="global"
-            ;;
-        *)
-            die "无效选择：$choice"
-            ;;
-    esac
+    while :; do
+        printf '\n========================================\n'
+        printf '         服务器网络环境\n'
+        printf '========================================\n'
+        printf '  1) 国内 / 中国大陆\n'
+        printf '  2) 国外 / 海外\n'
+        printf '----------------------------------------\n'
+        printf '请选择网络环境 [1]（0/q 退出）: '
+        read -r choice
+        if has_nonprintable_input "$choice"; then
+            continue
+        fi
+        case "${choice:-1}" in
+            1|cn|CN|china|China)
+                REGION="cn"
+                return
+                ;;
+            2|global|GLOBAL|abroad|Abroad|oversea|Oversea)
+                REGION="global"
+                return
+                ;;
+            0|q|Q)
+                log "已退出初始化脚本"
+                exit 0
+                ;;
+            *)
+                die "无效选择：$choice"
+                ;;
+        esac
+    done
 }
 
 normalize_region() {
@@ -152,36 +166,53 @@ normalize_region() {
     esac
 }
 
+has_nonprintable_input() {
+    case "$1" in
+        *[![:print:]]*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 show_action_menu() {
-    printf "\n请选择要执行的初始化功能（一次选择一个，执行后会回到菜单）：\n"
-    printf "  1) 更换 Alpine 软件源（仅国内环境）\n"
-    printf "  2) 更新 apk 索引\n"
-    printf "  3) 升级已安装软件包\n"
-    printf "  4) 更新 Alpine 系统（内核/发行版）\n"
-    printf "  5) 安装基础软件\n"
-    printf "  6) 安装常用软件\n"
-    printf "  7) 查看系统配置\n"
-    printf "  8) 调整时区\n"
-    printf "  9) 调整主机名\n"
-    printf "  10) 配置 Swap / zswap\n"
-    printf "  11) 启用 tun 内核模块\n"
-    printf "  12) 配置 SSH Root/密码/密钥登录\n"
-    printf "  13) 安装 Docker / Compose\n"
-    printf "  14) 配置 Docker 镜像加速并自动检测\n"
-    printf "  15) 安装常用 Docker 容器\n"
-    printf "  16) 重启服务器\n"
-    printf "  0) 退出\n"
+    printf "\n========================================\n"
+    printf " Alpine 服务器初始化 | 环境：%s\n" "$REGION"
+    printf "========================================\n"
+    printf "  1) 更换软件源(国内)\n"
+    printf "  2) 配置 SSH 登录\n"
+    printf "  3) 配置 Swap / zswap\n"
+    printf "  4) 更新 apk 索引\n"
+    printf "  5) 升级已安装软件包\n"
+    printf "  6) 更新系统(内核/发行版)\n"
+    printf "  7) 安装基础软件\n"
+    printf "  8) 安装常用软件\n"
+    printf "  9) 查看系统配置\n"
+    printf " 10) 启用 tun 模块\n"
+    printf " 11) 安装 Docker/Compose\t[当前：%s]\n" "$(docker_install_status)"
+    printf " 12) 配置 Docker 镜像加速\n"
+    printf " 13) 安装常用容器\n"
+    printf " 14) 调整时区\n"
+    printf " 15) 调整主机名\n"
+    printf " 16) 重启服务器\n"
+    printf "  0) 退出（也可输入 q）\n"
+    printf "----------------------------------------\n"
 }
 
 read_action() {
     show_action_menu
-    printf "请输入编号: "
+    printf "请输入编号（0/q 退出）: "
     if ! read -r action; then
         printf "\n"
         ACTION="0"
         return
     fi
-    ACTION="$action"
+    if has_nonprintable_input "$action"; then
+        ACTION="__ignore__"
+        return
+    fi
+    case "$action" in
+        q|Q) ACTION="0" ;;
+        *) ACTION="$action" ;;
+    esac
 }
 
 
@@ -319,7 +350,12 @@ install_docker() {
         return
     }
 
-    log "安装 Docker 和 Docker Compose"
+    if command -v docker >/dev/null 2>&1 && docker_compose_command >/dev/null 2>&1; then
+        log "Docker 和 Docker Compose 已安装，跳过重复安装"
+        return 0
+    fi
+
+    log "检查到 Docker / Compose 尚未完整安装，补充安装缺失组件"
     if ! apk add --no-cache docker docker-cli docker-cli-compose; then
         warn "docker-cli-compose 安装失败，尝试旧包名 docker-compose"
         apk add --no-cache docker docker-cli docker-compose
@@ -413,24 +449,106 @@ docker_compose_command() {
     fi
 }
 
+package_is_installed() {
+    apk info -e "$1" >/dev/null 2>&1
+}
+
+package_status() {
+    if package_is_installed "$1"; then
+        printf "✅ 已安装"
+    else
+        printf "⬜ 未安装"
+    fi
+}
+
+display_width() {
+    display_text="$1"
+    display_chars="$(printf '%s' "$display_text" | wc -m)"
+    display_non_ascii="$(printf '%s\n' "$display_text" | awk '{ text=$0; print gsub(/[^ -~]/, "", text) }')"
+    printf '%s' "$((display_chars + display_non_ascii))"
+}
+
+print_status_column() {
+    status_column="$1"
+    description_start="$2"
+    description="$3"
+    status="$4"
+    description_width="$(display_width "$description")"
+    padding=$((status_column - description_start - description_width))
+    [ "$padding" -gt 0 ] || padding=1
+    printf "%*s[%s]\n" "$padding" "" "$status"
+}
+
+print_package_item() {
+    item_number="$1"
+    item_name="$2"
+    item_description="$3"
+    item_package="$4"
+
+    item_status="$(package_status "$item_package")"
+    printf "  %2s) %-10s\t%s" "$item_number" "$item_name" "$item_description"
+    print_status_column 48 17 "$item_description" "$item_status"
+}
+
+docker_install_status() {
+    if command -v docker >/dev/null 2>&1 && docker_compose_command >/dev/null 2>&1; then
+        printf "✅ 已安装"
+    elif command -v docker >/dev/null 2>&1; then
+        printf "⚠️ Docker 已安装，Compose 未安装"
+    else
+        printf "⬜ 未安装"
+    fi
+}
+
+docker_container_status() {
+    if ! command -v docker >/dev/null 2>&1; then
+        printf "未安装 Docker"
+        return
+    fi
+
+    container_status="$(docker ps -a --filter 'name=^/nginx-proxy-manager$' --format '{{.Status}}' 2>/dev/null || true)"
+    if [ -z "$container_status" ]; then
+        if [ -f /opt/nginx-proxy-manager/docker-compose.yml ]; then
+            printf "⚠️ 已配置未启动"
+        else
+            printf "⬜ 未部署"
+        fi
+    elif printf '%s' "$container_status" | grep -q '^Up '; then
+        printf "✅ 已运行"
+    else
+        printf "⚠️ 已存在但未运行"
+    fi
+}
+
 install_nginx_proxy_manager() {
     container_dir="/opt/nginx-proxy-manager"
     compose_file="$container_dir/docker-compose.yml"
 
     if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，请先执行第 13 项安装 Docker / Compose"
+        warn "未找到 Docker，请先执行第 11 项安装 Docker / Compose"
         return 1
     fi
 
     compose_command="$(docker_compose_command || true)"
     if [ -z "$compose_command" ]; then
-        warn "未找到 Docker Compose，请先执行第 13 项安装 Docker / Compose"
+        warn "未找到 Docker Compose，请先执行第 11 项安装 Docker / Compose"
         return 1
     fi
 
     if ! docker info >/dev/null 2>&1; then
         warn "Docker 服务未运行或当前用户无权访问 Docker"
         return 1
+    fi
+
+    existing_container="$(docker ps -a --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null || true)"
+    if [ -n "$existing_container" ]; then
+        if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
+            log "nginx-proxy-manager 已经在运行，跳过重复部署"
+        else
+            warn "已发现 nginx-proxy-manager 容器，但当前未运行，跳过重复创建"
+            log "如需启动，请执行：$compose_command -f $compose_file up -d"
+        fi
+        return 0
     fi
 
     mkdir -p "$container_dir/data" "$container_dir/letsencrypt"
@@ -474,17 +592,24 @@ EOF
 }
 
 install_common_docker_containers() {
-    log "选择常用 Docker 容器"
-    printf "\n可安装的容器：\n"
-    printf "  1) nginx-proxy-manager - Web 反向代理、SSL 证书和域名管理\n"
+    printf "\n----------------------------------------\n"
+    printf "常用 Docker 容器\n"
+    printf "----------------------------------------\n"
+    container_description="反向代理与证书管理"
+    container_status="$(docker_container_status)"
+    printf "  1) %-24s\t%s" "nginx-proxy-manager" "$container_description"
+    print_status_column 72 33 "$container_description" "$container_status"
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
             container_choice="1"
             log "非交互模式，选择 nginx-proxy-manager"
         else
-            printf "请输入编号（直接回车返回，输入 1 安装 nginx-proxy-manager）: "
+            printf "请输入编号（1 部署，0/q 返回）: "
             read -r container_choice || container_choice="0"
+            if has_nonprintable_input "$container_choice"; then
+                continue
+            fi
             if [ -z "$container_choice" ]; then
                 container_choice="0"
             fi
@@ -492,14 +617,17 @@ install_common_docker_containers() {
 
         case "$container_choice" in
             1)
-                printf "\n即将部署：nginx-proxy-manager\n"
-                printf "镜像：jc21/nginx-proxy-manager:latest\n"
-                printf "端口：80（HTTP）、81（管理面板）、443（HTTPS）\n"
-                printf "目录：/opt/nginx-proxy-manager/data 和 /opt/nginx-proxy-manager/letsencrypt\n"
+                printf "\n----------------------------------------\n"
+                printf "部署确认：nginx-proxy-manager\n"
+                printf "----------------------------------------\n"
+                printf "  镜像：jc21/nginx-proxy-manager:latest\n"
+                printf "  端口：80（HTTP）、81（管理面板）、443（HTTPS）\n"
+                printf "  数据：/opt/nginx-proxy-manager/data\n"
+                printf "  证书：/opt/nginx-proxy-manager/letsencrypt\n"
                 install_nginx_proxy_manager
                 return
                 ;;
-            0)
+            0|q|Q)
                 log "已取消常用 Docker 容器安装"
                 return 2
                 ;;
@@ -545,15 +673,24 @@ configure_bottom() {
 }
 
 install_bottom() {
-    log "安装 Alpine 官方仓库中的 bottom"
-    if ! apk add --no-cache bottom; then
-        warn "bottom 安装失败，请检查 Alpine 软件源和网络连接"
-        return 1
+    if package_is_installed bottom; then
+        log "bottom 已安装，跳过重复安装"
+    else
+        log "安装 Alpine 官方仓库中的 bottom"
+        if ! apk add --no-cache bottom; then
+            warn "bottom 安装失败，请检查 Alpine 软件源和网络连接"
+            return 1
+        fi
     fi
     configure_bottom
 }
 
 install_fastfetch() {
+    if package_is_installed fastfetch; then
+        log "fastfetch 已安装，跳过重复安装"
+        return 0
+    fi
+
     log "安装 Alpine 官方仓库中的 fastfetch"
     if ! apk add --no-cache fastfetch; then
         warn "fastfetch 安装失败，请检查 Alpine 软件源和网络连接"
@@ -596,42 +733,72 @@ add_common_package() {
     case "$common_package" in
         bottom)
             common_bottom=1
+            if package_is_installed bottom; then
+                printf "  - %-10s\t%s" "bottom" "$common_description"
+                print_status_column 48 17 "$common_description" "✅ 已安装"
+            else
+                printf "  - %-10s\t%s" "bottom" "$common_description"
+                print_status_column 48 17 "$common_description" "⬜ 待安装"
+            fi
             ;;
         fastfetch)
             common_fastfetch=1
+            if package_is_installed fastfetch; then
+                printf "  - %-10s\t%s" "fastfetch" "$common_description"
+                print_status_column 48 17 "$common_description" "✅ 已安装"
+            else
+                printf "  - %-10s\t%s" "fastfetch" "$common_description"
+                print_status_column 48 17 "$common_description" "⬜ 待安装"
+            fi
             ;;
         *)
-            common_packages="$common_packages${common_packages:+ }$common_package"
+            if package_is_installed "$common_package"; then
+                printf "  - %-10s\t%s" "$common_package" "$common_description"
+                print_status_column 48 17 "$common_description" "✅ 已安装"
+            else
+                common_packages="$common_packages${common_packages:+ }$common_package"
+                printf "  - %-10s\t%s" "$common_package" "$common_description"
+                print_status_column 48 17 "$common_description" "⬜ 待安装"
+            fi
             ;;
     esac
-    printf "  - %s：%s\n" "$common_package" "$common_description"
 }
 
 install_base_software() {
-    log "选择基础软件"
-    printf "\n可安装的软件：\n"
-    printf "  1) curl  - 通过 HTTP/HTTPS 下载或调用接口\n"
-    printf "  2) bash  - 功能更完整的 Shell\n"
-    printf "  3) jq    - 在命令行解析和处理 JSON\n"
-    printf "  4) wget  - 下载文件\n"
-    printf "  5) git   - Git 版本控制工具\n"
-    printf "  6) vim   - 终端文本编辑器\n"
-    printf "  7) bottom - 终端系统监控（替代 htop）\n"
-    printf "  8) tmux  - 终端会话管理\n"
-    printf "  9) unzip - 解压 ZIP 文件\n"
-    printf "  10) fastfetch - 查看系统信息和硬件配置\n"
+    printf "\n----------------------------------------\n"
+    printf "基础软件\n"
+    printf "----------------------------------------\n"
+    print_package_item 1 curl "通过 HTTP/HTTPS 下载或调用接口" curl
+    print_package_item 2 bash "功能更完整的 Shell" bash
+    print_package_item 3 jq "在命令行解析和处理 JSON" jq
+    print_package_item 4 wget "下载文件" wget
+    print_package_item 5 git "Git 版本控制工具" git
+    print_package_item 6 vim "终端文本编辑器" vim
+    print_package_item 7 bottom "终端系统监控 (替代 htop)" bottom
+    print_package_item 8 tmux "终端会话管理" tmux
+    print_package_item 9 unzip "解压 ZIP 文件" unzip
+    print_package_item 10 fastfetch "查看系统信息和硬件配置" fastfetch
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
             common_input="all"
             log "非交互模式，默认安装全部基础软件"
         else
-            printf "请输入编号（空格或逗号分隔，输入 a 全选，直接回车返回）: "
+            printf "请输入编号（空格或逗号分隔，输入 a 全选，0/q 返回，直接回车返回）: "
             read -r common_input || common_input=""
+            if has_nonprintable_input "$common_input"; then
+                continue
+            fi
             if [ -z "$common_input" ]; then
                 warn "已取消基础软件安装"
                 return 2
             fi
+            case "$common_input" in
+                0|q|Q)
+                    warn "已取消基础软件安装"
+                    return 2
+                    ;;
+            esac
         fi
 
         case "$common_input" in
@@ -654,7 +821,7 @@ install_base_software() {
         common_bottom=0
         common_fastfetch=0
         common_invalid=0
-        printf "\n即将安装：\n"
+        printf "\n本次处理清单（已安装项自动跳过）：\n"
         for common_choice in $common_choices; do
             case "$common_choice" in
                 1) add_common_package 1 curl "通过 HTTP/HTTPS 下载或调用接口" ;;
@@ -663,7 +830,7 @@ install_base_software() {
                 4) add_common_package 4 wget "下载文件" ;;
                 5) add_common_package 5 git "Git 版本控制工具" ;;
                 6) add_common_package 6 vim "终端文本编辑器" ;;
-                7) add_common_package 7 bottom "终端系统监控（替代 htop）" ;;
+                7) add_common_package 7 bottom "终端系统监控 (替代 htop)" ;;
                 8) add_common_package 8 tmux "终端会话管理" ;;
                 9) add_common_package 9 unzip "解压 ZIP 文件" ;;
                 10) add_common_package 10 fastfetch "查看系统信息和硬件配置" ;;
@@ -687,6 +854,10 @@ install_base_software() {
             warn "基础软件安装失败"
             return 1
         fi
+    fi
+
+    if [ -z "$common_packages" ] && [ "$common_bottom" -eq 0 ] && [ "$common_fastfetch" -eq 0 ]; then
+        log "所选基础软件均已安装，无需重复安装"
     fi
 
     if [ "$common_bottom" -eq 1 ]; then
@@ -730,22 +901,32 @@ configure_npm_pypi_mirrors() {
 }
 
 install_common_software() {
-    log "选择常用软件"
-    printf "\n可安装的软件：\n"
-    printf "  1) npx  - Node.js 包执行工具（安装 npm）\n"
-    printf "  2) pip3 - Python 3 软件包安装工具（安装 py3-pip）\n"
+    printf "\n----------------------------------------\n"
+    printf "常用软件\n"
+    printf "----------------------------------------\n"
+    print_package_item 1 npx "Node.js 包执行工具" npm
+    print_package_item 2 pip3 "Python 3 包管理工具" py3-pip
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
             common_input="all"
             log "非交互模式，默认安装全部常用软件"
         else
-            printf "请输入编号（空格或逗号分隔，输入 a 全选，直接回车返回）: "
+            printf "请输入编号（空格或逗号分隔，输入 a 全选，0/q 返回，直接回车返回）: "
             read -r common_input || common_input=""
+            if has_nonprintable_input "$common_input"; then
+                continue
+            fi
             if [ -z "$common_input" ]; then
                 warn "已取消常用软件安装"
                 return 2
             fi
+            case "$common_input" in
+                0|q|Q)
+                    warn "已取消常用软件安装"
+                    return 2
+                    ;;
+            esac
         fi
 
         case "$common_input" in
@@ -767,26 +948,38 @@ install_common_software() {
         common_npm=0
         common_pip3=0
         common_invalid=0
-        printf "\n即将安装：\n"
+        printf "\n本次处理清单（已安装项自动跳过）：\n"
         for common_choice in $common_choices; do
             case "$common_choice" in
                 1)
                     common_npm=1
-                    if [ -n "$common_packages" ]; then
-                        common_packages="$common_packages npm"
+                    if package_is_installed npm; then
+                        printf "  - %-10s\t%s" "npx" "Node.js 包执行工具"
+                        print_status_column 48 17 "Node.js 包执行工具" "✅ 已安装"
                     else
-                        common_packages="npm"
+                        if [ -n "$common_packages" ]; then
+                            common_packages="$common_packages npm"
+                        else
+                            common_packages="npm"
+                        fi
+                        printf "  - %-10s\t%s" "npx" "Node.js 包执行工具"
+                        print_status_column 48 17 "Node.js 包执行工具" "⬜ 待安装"
                     fi
-                    printf "  - npx：Node.js 包执行工具，将安装 npm\n"
                     ;;
                 2)
                     common_pip3=1
-                    if [ -n "$common_packages" ]; then
-                        common_packages="$common_packages py3-pip"
+                    if package_is_installed py3-pip; then
+                        printf "  - %-10s\t%s" "pip3" "Python 3 包管理工具"
+                        print_status_column 48 17 "Python 3 包管理工具" "✅ 已安装"
                     else
-                        common_packages="py3-pip"
+                        if [ -n "$common_packages" ]; then
+                            common_packages="$common_packages py3-pip"
+                        else
+                            common_packages="py3-pip"
+                        fi
+                        printf "  - %-10s\t%s" "pip3" "Python 3 包管理工具"
+                        print_status_column 48 17 "Python 3 包管理工具" "⬜ 待安装"
                     fi
-                    printf "  - pip3：Python 3 软件包安装工具，将安装 py3-pip\n"
                     ;;
                 *)
                     warn "无效软件编号：$common_choice"
@@ -795,21 +988,27 @@ install_common_software() {
             esac
         done
 
-        if [ "$common_invalid" -eq 0 ] && [ -n "$common_packages" ]; then
+        if [ "$common_invalid" -eq 0 ] && {
+            [ -n "$common_packages" ] || [ "$common_npm" -eq 1 ] || [ "$common_pip3" -eq 1 ];
+        }; then
             break
         fi
         warn "请输入有效的软件编号"
     done
 
-    if apk add --no-cache $common_packages; then
-        if ! configure_npm_pypi_mirrors; then
+    if [ -n "$common_packages" ]; then
+        if ! apk add --no-cache $common_packages; then
+            warn "常用软件安装失败"
             return 1
         fi
-        log "常用软件安装完成"
     else
-        warn "常用软件安装失败"
+        log "所选常用软件均已安装，无需重复安装"
+    fi
+
+    if ! configure_npm_pypi_mirrors; then
         return 1
     fi
+    log "常用软件处理完成"
 }
 
 fetch_latest_stable_release() {
@@ -895,13 +1094,16 @@ upgrade_alpine_system() {
         printf "  2) 仅升级当前发行版\n"
         printf "  3) 更新内核并切换到最新稳定发行版（不支持自动从 edge 切换）\n"
         printf "  0) 取消\n"
-        printf "请输入编号 [0]: "
+        printf "请输入编号 [0/q]: "
         read -r upgrade_choice || upgrade_choice=""
+        if has_nonprintable_input "$upgrade_choice"; then
+            return 2
+        fi
         case "${upgrade_choice:-0}" in
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
             3) warn "当前为 edge，已取消跨发行版切换"; return 2 ;;
-            0) log "已取消系统升级"; return 2 ;;
+            0|q|Q) log "已取消系统升级"; return 2 ;;
             *) warn "无效选择：$upgrade_choice"; return 1 ;;
         esac
     else
@@ -914,13 +1116,16 @@ upgrade_alpine_system() {
             printf "  3) 更新内核并升级到目标发行版\n"
         fi
         printf "  0) 取消\n"
-        printf "请输入编号 [0]: "
+        printf "请输入编号 [0/q]: "
         read -r upgrade_choice || upgrade_choice=""
+        if has_nonprintable_input "$upgrade_choice"; then
+            return 2
+        fi
         case "${upgrade_choice:-0}" in
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
             3) upgrade_mode="release" ;;
-            0) log "已取消系统升级"; return 2 ;;
+            0|q|Q) log "已取消系统升级"; return 2 ;;
             *) warn "无效选择：$upgrade_choice"; return 1 ;;
         esac
 
@@ -1047,11 +1252,17 @@ configure_timezone() {
         log "非交互模式，保留当前时区：$selected_timezone"
     else
         while :; do
-            printf "请输入时区（例如 Asia/Shanghai、Asia/Tokyo、Europe/London、UTC，直接回车取消）: "
+            printf "请输入时区（例如 Asia/Shanghai、Asia/Tokyo、Europe/London、UTC，0/q 取消，直接回车取消）: "
             read -r selected_timezone || selected_timezone=""
+            case "$selected_timezone" in
+                0|q|Q)
+                    warn "已取消时区调整"
+                    return 2
+                    ;;
+            esac
             if [ -z "$selected_timezone" ]; then
                 warn "已取消时区调整"
-                return 0
+                return 2
             fi
 
             case "$selected_timezone" in
@@ -1089,15 +1300,21 @@ configure_hostname() {
 
     if [ "$ASSUME_YES" -eq 1 ]; then
         warn "主机名需要手动输入，非交互模式已跳过"
-        return 0
+        return 2
     fi
 
     while :; do
-        printf "请输入新主机名（字母、数字、点和连字符，直接回车取消）: "
+        printf "请输入新主机名（字母、数字、点和连字符，0/q 取消，直接回车取消）: "
         read -r selected_hostname || selected_hostname=""
+        case "$selected_hostname" in
+            0|q|Q)
+                warn "已取消主机名调整"
+                return 2
+                ;;
+        esac
         if [ -z "$selected_hostname" ]; then
             warn "已取消主机名调整"
-            return 0
+            return 2
         fi
 
         case "$selected_hostname" in
@@ -1280,8 +1497,11 @@ configure_swap_zswap() {
         printf "  2) 开启并配置 zswap\n"
         printf "  3) 查看当前状态\n"
         printf "  0) 返回主菜单\n"
-        printf "请输入编号: "
+        printf "请输入编号（0/q 返回）: "
         read -r swap_action || swap_action="0"
+        if has_nonprintable_input "$swap_action"; then
+            continue
+        fi
         case "$swap_action" in
             1)
                 configure_swap_file
@@ -1309,8 +1529,8 @@ configure_swap_zswap() {
             3)
                 show_swap_zswap_status
                 ;;
-            0)
-                return 0
+            0|q|Q)
+                return 2
                 ;;
             *)
                 warn "无效功能编号：$swap_action"
@@ -1583,6 +1803,7 @@ reboot_server() {
         reboot
     else
         warn "已取消重启"
+        return 2
     fi
 }
 
@@ -1599,50 +1820,44 @@ execute_action() {
             fi
             ;;
         2)
-            update_apk_index
+            setup_ssh_login
             ;;
         3)
+            configure_swap_zswap
+            ;;
+        4)
+            update_apk_index
+            ;;
+        5)
             if [ "$SKIP_UPGRADE" -eq 1 ]; then
                 warn "按参数跳过：升级已安装软件包"
             else
                 upgrade_system
             fi
             ;;
-        4)
+        6)
             upgrade_alpine_system
             ;;
-        5)
+        7)
             install_base_software
             ;;
-        6)
+        8)
             install_common_software
             ;;
-        7)
+        9)
             view_system_config
             ;;
-        8)
-            configure_timezone
-            ;;
-        9)
-            configure_hostname
-            ;;
         10)
-            configure_swap_zswap
-            ;;
-        11)
             enable_tun
             ;;
-        12)
-            setup_ssh_login
-            ;;
-        13)
+        11)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：安装 Docker / Compose"
             else
                 install_docker
             fi
             ;;
-        14)
+        12)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：配置 Docker 镜像加速"
             else
@@ -1650,12 +1865,18 @@ execute_action() {
                 detect_docker_mirror
             fi
             ;;
-        15)
+        13)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：安装常用 Docker 容器"
             else
                 install_common_docker_containers
             fi
+            ;;
+        14)
+            configure_timezone
+            ;;
+        15)
+            configure_hostname
             ;;
         16)
             reboot_server
@@ -1667,10 +1888,10 @@ execute_action() {
 }
 
 run_all_actions() {
-    for action in 1 2 3 4 5 6 7 10 11 13 14; do
+    for action in 1 4 5 6 7 8 9 10 11 12; do
         execute_action "$action"
     done
-    warn "时区、主机名、SSH 登录、常用 Docker 容器和重启需要交互输入，自动模式已跳过第 8、9、12、15、16 项"
+    warn "SSH、Swap / zswap、常用 Docker 容器、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、13、14、15、16 项"
 }
 
 pause_before_menu() {
@@ -1684,6 +1905,8 @@ menu_loop() {
         case "$ACTION" in
             "")
                 warn "请输入功能编号，输入 0 退出"
+                ;;
+            __ignore__)
                 ;;
             0)
                 log "退出初始化菜单"

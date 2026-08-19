@@ -18,7 +18,7 @@ sh -c "$(wget -qO- 'https://raw.githubusercontent.com/Tsanfer/alpine-init/main/a
 
 如果没有 wget，可将 `wget -qO- URL` 替换为 `curl -fsSL URL`。
 
-也可以使用下面的完整脚本，根据提示选择网络地址，并自动在 curl 和 wget 之间切换：
+也可以使用下面的完整脚本，根据提示选择网络地址，并优先使用 wget，缺少 wget 时再使用 curl：
 ~~~
 printf "是否从国内代理拉取脚本？[Y/n] "
 read -r choice
@@ -33,13 +33,13 @@ if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
     exit 1
 fi
 
-if command -v curl >/dev/null 2>&1; then
-    script="$(curl -fsSL "$url")" || {
+if command -v wget >/dev/null 2>&1; then
+    script="$(wget -qO- "$url")" || {
         echo "脚本下载失败" >&2
         exit 1
     }
-elif command -v wget >/dev/null 2>&1; then
-    script="$(wget -qO- "$url")" || {
+elif command -v curl >/dev/null 2>&1; then
+    script="$(curl -fsSL "$url")" || {
         echo "脚本下载失败" >&2
         exit 1
     }
@@ -59,29 +59,26 @@ fi
 | 编号 | 功能 |
 | --- | --- |
 | 1 | 更换 Alpine 软件源，仅国内环境执行 |
-| 2 | 更新 apk 索引 |
-| 3 | 升级已安装软件包 |
-| 4 | 更新 Alpine 系统，包括内核和发行版 |
-| 5 | 安装基础软件 |
-| 6 | 安装常用软件 |
-| 7 | 查看系统配置 |
-| 8 | 调整时区 |
-| 9 | 调整主机名 |
-| 10 | 配置 Swap / zswap |
-| 11 | 启用 tun 内核模块 |
-| 12 | 配置 SSH Root、密码和密钥登录 |
-| 13 | 安装 Docker / Compose |
-| 14 | 配置 Docker 镜像加速并自动检测 |
-| 15 | 安装常用 Docker 容器 |
+| 2 | 配置 SSH Root、密码和密钥登录 |
+| 3 | 配置 Swap / zswap |
+| 4 | 更新 apk 索引 |
+| 5 | 升级已安装软件包 |
+| 6 | 更新 Alpine 系统，包括内核和发行版 |
+| 7 | 安装基础软件 |
+| 8 | 安装常用软件 |
+| 9 | 查看系统配置 |
+| 10 | 启用 tun 内核模块 |
+| 11 | 安装 Docker / Compose |
+| 12 | 配置 Docker 镜像加速并自动检测 |
+| 13 | 安装常用 Docker 容器 |
+| 14 | 调整时区 |
+| 15 | 调整主机名 |
 | 16 | 重启服务器 |
-| 0 | 退出 |
+| 0 | 退出（主菜单也支持 q） |
 
 ### 基础软件
 
-第 5 项会先列出软件及作用，可输入多个编号；输入 `a` 全选，直接回车返回，不安装软件。
-
-软件包括：
-
+- 进入第 7 项时会先显示每个软件当前是“已安装”还是“未安装”。选择已安装的软件会自动跳过重复安装。
 - curl：HTTP/HTTPS 下载和接口调用
 - bash：功能更完整的 Shell
 - jq：处理 JSON
@@ -95,32 +92,24 @@ fi
 
 ### 常用软件
 
-第 6 项用于安装开发环境常用命令，可选择多个编号；输入 `a` 全选，直接回车返回，不安装软件。
-
+- 进入第 8 项时会先检查 `npm` 和 `py3-pip` 是否已安装，已安装的软件会自动跳过重复安装。
 - npx：Node.js 包执行工具，实际安装 Alpine 的 npm 包
 - pip3：Python 3 软件包安装工具，实际安装 Alpine 的 py3-pip 包
 
 国内环境安装完成后会自动配置软件源。
 
-### 回车默认行为
-
-- 基础软件、常用软件：直接回车返回，不安装；输入编号选择软件，输入 `a` 全选。
-- 常用 Docker 容器：直接回车返回，不部署容器；输入编号后才执行。
-- Alpine 系统、内核和发行版升级：直接回车取消，输入编号后才执行。
-- SSH、时区、主机名、Swap / zswap、tun 和重启等会影响系统状态的功能：需要根据提示明确确认或输入，直接回车不会执行关键变更。
-
 ### 常用 Docker 容器
 
-第 15 项用于安装常用 Docker 容器，目前提供 `nginx-proxy-manager`：
+第 11 项会先显示 Docker / Compose 是否已安装，已完整安装时跳过重复安装，只补充缺失组件。
 
-- 镜像：`jc21/nginx-proxy-manager:latest`
-- HTTP 端口：`80`
-- 管理面板端口：`81`
-- HTTPS 端口：`443`
-- 数据目录：`/opt/nginx-proxy-manager/data`
-- 证书目录：`/opt/nginx-proxy-manager/letsencrypt`
+第 13 项目前提供 `nginx-proxy-manager`。菜单会先显示容器状态：未部署、已配置未启动、已存在但未运行或已运行。已存在的容器不会重复创建。
 
-管理面板地址为 `http://服务器IP:81`。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。安装前会显示镜像、端口和目录信息，直接回车返回，不部署容器；输入 `1` 才安装 nginx-proxy-manager。执行前需要先完成第 13 项 Docker / Compose 安装，并确认 80、81、443 端口没有被其他服务占用。
+### 回车默认行为
+
+- 基础软件、常用软件和 Docker 容器：直接回车返回，不执行安装；输入编号后才检查并处理。
+- Alpine 系统、内核和发行版升级：直接回车取消。
+- SSH、时区、主机名、Swap / zswap、tun 和重启等功能：需要根据提示明确输入或确认。
+- 主菜单推荐使用 `0` 退出；同时兼容输入 `q` 或 `Q`。
 
 ## 命令参数
 
