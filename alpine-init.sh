@@ -623,15 +623,19 @@ install_base_software() {
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
-            common_input=""
+            common_input="all"
             log "非交互模式，默认安装全部基础软件"
         else
-            printf "请输入编号（空格或逗号分隔，直接回车默认全选）: "
+            printf "请输入编号（空格或逗号分隔，输入 all 全选，直接回车返回）: "
             read -r common_input || common_input=""
+            if [ -z "$common_input" ]; then
+                warn "已取消基础软件安装"
+                return 0
+            fi
         fi
 
         case "$common_input" in
-            ""|all|ALL|a|A)
+            all|ALL|a|A)
                 common_choices="1 2 3 4 5 6 7 8 9 10"
                 ;;
             *)
@@ -733,15 +737,19 @@ install_common_software() {
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
-            common_input=""
+            common_input="all"
             log "非交互模式，默认安装全部常用软件"
         else
-            printf "请输入编号（空格或逗号分隔，直接回车默认全选）: "
+            printf "请输入编号（空格或逗号分隔，输入 all 全选，直接回车返回）: "
             read -r common_input || common_input=""
+            if [ -z "$common_input" ]; then
+                warn "已取消常用软件安装"
+                return 0
+            fi
         fi
 
         case "$common_input" in
-            ""|all|ALL|a|A)
+            all|ALL|a|A)
                 common_choices="1 2"
                 ;;
             *)
