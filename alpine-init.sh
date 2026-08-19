@@ -501,7 +501,7 @@ install_common_docker_containers() {
                 ;;
             0)
                 log "已取消常用 Docker 容器安装"
-                return 0
+                return 2
                 ;;
             *)
                 warn "无效容器编号：$container_choice"
@@ -630,7 +630,7 @@ install_base_software() {
             read -r common_input || common_input=""
             if [ -z "$common_input" ]; then
                 warn "已取消基础软件安装"
-                return 0
+                return 2
             fi
         fi
 
@@ -744,7 +744,7 @@ install_common_software() {
             read -r common_input || common_input=""
             if [ -z "$common_input" ]; then
                 warn "已取消常用软件安装"
-                return 0
+                return 2
             fi
         fi
 
@@ -900,8 +900,8 @@ upgrade_alpine_system() {
         case "${upgrade_choice:-0}" in
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
-            3) warn "当前为 edge，已取消跨发行版切换"; return 0 ;;
-            0) log "已取消系统升级"; return 0 ;;
+            3) warn "当前为 edge，已取消跨发行版切换"; return 2 ;;
+            0) log "已取消系统升级"; return 2 ;;
             *) warn "无效选择：$upgrade_choice"; return 1 ;;
         esac
     else
@@ -920,7 +920,7 @@ upgrade_alpine_system() {
             1) upgrade_mode="kernel" ;;
             2) upgrade_mode="packages" ;;
             3) upgrade_mode="release" ;;
-            0) log "已取消系统升级"; return 0 ;;
+            0) log "已取消系统升级"; return 2 ;;
             *) warn "无效选择：$upgrade_choice"; return 1 ;;
         esac
 
@@ -1691,11 +1691,23 @@ menu_loop() {
                 ;;
             1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)
                 if execute_action "$ACTION"; then
-                    log "任务执行结束，返回菜单"
+                    action_status=0
                 else
-                    warn "任务执行失败，返回菜单"
+                    action_status=$?
                 fi
-                pause_before_menu
+                case "$action_status" in
+                    0)
+                        log "任务执行结束，返回菜单"
+                        pause_before_menu
+                        ;;
+                    2)
+                        log "操作已取消，返回菜单"
+                        ;;
+                    *)
+                        warn "任务执行失败，返回菜单"
+                        pause_before_menu
+                        ;;
+                esac
                 ;;
             *)
                 warn "无效功能编号：$ACTION"
