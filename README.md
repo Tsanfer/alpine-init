@@ -4,11 +4,42 @@ alpine-init.sh 是一个面向 Alpine Linux 服务器的交互式初始化脚本
 
 ## 快速开始
 
-使用 root 执行：
+直接从网络拉取并执行最新脚本：
 
 ~~~sh
-chmod +x /root/alpine-init.sh
-sh /root/alpine-init.sh
+printf "是否从国内代理拉取脚本？[Y/n] "
+read -r choice
+if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then
+    url="https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh"
+else
+    url="https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh"
+fi
+
+if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
+    echo "请先使用 root，或安装 sudo" >&2
+    exit 1
+fi
+
+if command -v curl >/dev/null 2>&1; then
+    script="$(curl -fsSL "$url")" || {
+        echo "脚本下载失败" >&2
+        exit 1
+    }
+elif command -v wget >/dev/null 2>&1; then
+    script="$(wget -qO- "$url")" || {
+        echo "脚本下载失败" >&2
+        exit 1
+    }
+else
+    echo "请先安装 curl 或 wget" >&2
+    exit 1
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+    sh -c "$script"
+else
+    sudo sh -c "$script"
+fi
 ~~~
 
 脚本启动时会先选择服务器网络环境：
@@ -164,13 +195,18 @@ SSH 登录策略默认开启：
     跳过 Docker 安装和镜像加速配置
 ~~~
 
-示例：
+脚本参数需要在下载后执行时传入。如需固定参数，建议先下载再执行：
 
 ~~~sh
-sh /root/alpine-init.sh --region cn
-sh /root/alpine-init.sh --region global
-sh /root/alpine-init.sh --region cn --docker-mirrors "https://docker.m.daocloud.io"
-sh /root/alpine-init.sh --region global -y
+curl -fsSL https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh -o alpine-init.sh
+chmod +x alpine-init.sh
+sudo sh alpine-init.sh --region cn
+~~~
+
+国内网络可将下载地址替换为：
+
+~~~text
+https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh
 ~~~
 
 ## 注意事项
