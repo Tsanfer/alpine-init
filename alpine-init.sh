@@ -520,6 +520,51 @@ docker_container_status() {
     fi
 }
 
+detect_server_ip() {
+    detected_ip=""
+
+    if command -v ip >/dev/null 2>&1; then
+        detected_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{
+            for (i = 1; i <= NF; i++) {
+                if ($i == "src" && $(i + 1) ~ /^[0-9][0-9.]*$/) {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }')"
+    fi
+
+    if [ -z "$detected_ip" ] && command -v hostname >/dev/null 2>&1; then
+        detected_ip="$(hostname -I 2>/dev/null | awk '{
+            for (i = 1; i <= NF; i++) {
+                if ($i ~ /^[0-9][0-9.]*$/ && $i !~ /^127\./) {
+                    print $i
+                    exit
+                }
+            }
+        }')"
+    fi
+
+    if [ -z "$detected_ip" ] && command -v curl >/dev/null 2>&1; then
+        detected_ip="$(curl -4 -fsSL --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+    fi
+
+    if [ -z "$detected_ip" ] && command -v wget >/dev/null 2>&1; then
+        detected_ip="$(wget -qO- -T 3 https://api.ipify.org 2>/dev/null || true)"
+    fi
+
+    printf '%s' "$detected_ip"
+}
+
+show_nginx_proxy_manager_address() {
+    manager_ip="$(detect_server_ip)"
+    if [ -n "$manager_ip" ]; then
+        log "管理面板地址：http://$manager_ip:81"
+    else
+        warn "未能自动检测服务器 IP，请手动访问：http://服务器IP:81"
+    fi
+}
+
 install_nginx_proxy_manager() {
     container_dir="/opt/nginx-proxy-manager"
     compose_file="$container_dir/docker-compose.yml"
@@ -544,6 +589,7 @@ install_nginx_proxy_manager() {
     if [ -n "$existing_container" ]; then
         if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
             log "nginx-proxy-manager 已经在运行，跳过重复部署"
+            show_nginx_proxy_manager_address
         else
             warn "已发现 nginx-proxy-manager 容器，但当前未运行，跳过重复创建"
             log "如需启动，请执行：$compose_command -f $compose_file up -d"
@@ -581,7 +627,7 @@ EOF
 
     if $compose_command -f "$compose_file" ps; then
         log "nginx-proxy-manager 已启动"
-        log "管理面板地址：http://服务器IP:81"
+        show_nginx_proxy_manager_address
         log "首次登录默认账号：admin@example.com，默认密码：changeme，请立即修改"
         log "数据目录：$container_dir/data"
         log "证书目录：$container_dir/letsencrypt"
