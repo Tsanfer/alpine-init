@@ -7,16 +7,16 @@
 国内环境运行：
 
 ~~~sh
-f="$(mktemp)" && curl -fsSL "https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh" -o "$f" && sh "$f"
+sh -c "$(curl -fsSL 'https://gh-proxy.org/https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
 ~~~
 
 国外/海外环境运行：
 
 ~~~sh
-f="$(mktemp)" && curl -fsSL "https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh" -o "$f" && sh "$f"
+sh -c "$(curl -fsSL 'https://raw.githubusercontent.com/Tsanfer/alpine-init/main/alpine-init.sh')"
 ~~~
 
-如果没有 curl，可将上述命令中的下载部分替换为 wget -qO "$f" URL。
+如果没有 curl，可将 \`curl -fsSL URL\` 替换为 \`wget -qO- URL\`。
 
 也可以使用下面的完整脚本，根据提示选择网络地址，并自动在 curl 和 wget 之间切换：
 
