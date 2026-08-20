@@ -79,42 +79,37 @@ fi
 
 ### 基础软件
 
-- 进入第 7 项时会先显示每个软件当前是“已安装”还是“未安装”。选择已安装的软件会自动跳过重复安装。
-- curl：HTTP/HTTPS 下载和接口调用
-- bash：功能更完整的 Shell
-- jq：处理 JSON
-- wget：文件下载
-- git：版本控制
-- vim：终端编辑器
-- bottom：终端系统监控，命令为 btm
-- tmux：终端会话管理
-- unzip：解压 ZIP 文件
-- fastfetch：查看系统和硬件信息
+| 软件 | 作用 | 说明 |
+| --- | --- | --- |
+| `curl` | HTTP/HTTPS 下载和接口调用 | 直接提供 `curl` 命令 |
+| `bash` | 功能更完整的 Shell | 直接提供 `bash` 命令 |
+| `jq` | 处理 JSON | 直接提供 `jq` 命令 |
+| `wget` | 文件下载 | 直接提供 `wget` 命令 |
+| `git` | 版本控制 | 直接提供 `git` 命令 |
+| `vim` | 终端编辑器 | 直接提供 `vim` 命令 |
+| `bottom` | 终端系统监控 | 命令为 `btm` |
+| `tmux` | 终端会话管理 | 直接提供 `tmux` 命令 |
+| `unzip` | 解压 ZIP 文件 | 直接提供 `unzip` 命令 |
+| `fastfetch` | 查看系统和硬件信息 | 直接提供 `fastfetch` 命令 |
 
 ### 常用软件
 
-- 进入第 8 项时会先检查 `npm` 和 `py3-pip` 是否已安装，已安装的软件会自动跳过重复安装。
-- npx：Node.js 包执行工具，实际安装 Alpine 的 npm 包
-- pip3：Python 3 软件包安装工具，实际安装 Alpine 的 py3-pip 包
+| 软件 | 作用 | 实际安装的软件包 |
+| --- | --- | --- |
+| `npx` | Node.js 包执行工具 | Alpine `npm` |
+| `pip3` | Python 3 软件包安装工具 | Alpine `py3-pip` |
 
 国内环境安装完成后会自动配置软件源。
 
 ### 常用 Docker 容器
 
-第 11 项会先显示 Docker / Compose 是否已安装，已完整安装时跳过重复安装，只补充缺失组件。
-
-第 13 项目前提供 `nginx-proxy-manager`。菜单会先显示容器状态：未部署、已配置未启动、已存在但未运行或已运行。已存在的容器不会重复创建。
+| 容器 | 作用 | 镜像 | 端口 | 数据目录 |
+| --- | --- | --- | --- | --- |
+| `nginx-proxy-manager` | Web 反向代理、SSL 证书和域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP、`81` 管理面板、`443` HTTPS | `/opt/nginx-proxy-manager/data`、`/opt/nginx-proxy-manager/letsencrypt` |
 
 安装完成后脚本会自动检测服务器 IP，并显示管理面板地址（端口 `81`）。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。
 
 第 14 项用于管理已有 Docker 容器，可选择启动、停止、重启或删除容器。删除操作需要再次确认，只删除容器本身，不会自动删除数据卷或绑定目录。
-
-### 回车默认行为
-
-- 基础软件、常用软件和 Docker 容器：直接回车返回，不执行安装；输入编号后才检查并处理。
-- Alpine 系统、内核和发行版升级：直接回车取消。
-- SSH、时区、主机名、Swap / zswap、tun 和重启等功能：需要根据提示明确输入或确认。
-- 主菜单推荐使用 `0` 退出；同时兼容输入 `q` 或 `Q`。
 
 ## 命令参数
 
