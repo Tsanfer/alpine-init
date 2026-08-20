@@ -69,7 +69,7 @@ fi
 | 9 | 启用 tun 内核模块 |
 | 10 | 安装 Docker / Compose |
 | 11 | 配置 Docker 镜像加速并自动检测 |
-| 12 | 管理 Docker 容器 |
+| 12 | 安装 Docker 面板 |
 | 13 | 查看系统配置 |
 | 14 | 调整时区 |
 | 15 | 调整主机名 |
@@ -104,7 +104,7 @@ fi
 
 ### Docker 管理面板
 
-脚本不内置常用 Docker 容器部署。需要图形化管理 Docker 时，可以按 [DPanel 官方安装文档](https://dpanel.cc/install/shell) 安装：
+第 12 项会调用 DPanel 官方安装器。也可以按 [DPanel 官方安装文档](https://dpanel.cc/install/shell) 手动安装：
 
 ~~~sh
 curl -sSL https://dpanel.cc/quick.sh | bash
