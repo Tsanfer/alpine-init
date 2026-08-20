@@ -354,6 +354,7 @@ install_docker() {
 
     if command -v docker >/dev/null 2>&1 && docker_compose_command >/dev/null 2>&1; then
         log "Docker 和 Docker Compose 已安装，跳过重复安装"
+        ensure_docker_network
         return 0
     fi
 
@@ -361,6 +362,32 @@ install_docker() {
     if ! apk add --no-cache docker docker-cli docker-cli-compose; then
         warn "docker-cli-compose 安装失败，尝试旧包名 docker-compose"
         apk add --no-cache docker docker-cli docker-compose
+    fi
+    ensure_docker_network
+}
+
+ensure_docker_network() {
+    docker_network="docker-net"
+
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "未找到 Docker，无法创建共享网络：$docker_network"
+        return 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        warn "Docker 服务未运行或当前用户无权访问，无法创建共享网络：$docker_network"
+        return 1
+    fi
+
+    if docker network inspect "$docker_network" >/dev/null 2>&1; then
+        log "Docker 共享网络已存在：$docker_network"
+        return 0
+    fi
+
+    if docker network create --driver bridge "$docker_network" >/dev/null; then
+        log "已创建 Docker 共享网络：$docker_network"
+    else
+        warn "Docker 共享网络创建失败：$docker_network"
+        return 1
     fi
 }
 
@@ -570,7 +597,7 @@ show_nginx_proxy_manager_address() {
 install_nginx_proxy_manager() {
     container_dir="/opt/nginx-proxy-manager"
     compose_file="$container_dir/docker-compose.yml"
-    proxy_network="proxy"
+    docker_network="docker-net"
 
     if ! command -v docker >/dev/null 2>&1; then
         warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
@@ -604,20 +631,15 @@ install_nginx_proxy_manager() {
             warn "当前端口映射：$existing_ports，请先在第 13 项删除旧容器，再重新部署"
             return 1
         fi
-        if ! docker network inspect "$proxy_network" >/dev/null 2>&1; then
-            if docker network create "$proxy_network" >/dev/null; then
-                log "已创建 Docker 网络：$proxy_network"
-            else
-                warn "Docker 网络创建失败：$proxy_network"
-                return 1
-            fi
+        if ! ensure_docker_network; then
+            return 1
         fi
         existing_networks="$(docker inspect --format '{{json .NetworkSettings.Networks}}' nginx-proxy-manager 2>/dev/null || true)"
-        if ! printf '%s' "$existing_networks" | grep -Fq '"'"$proxy_network"'"'; then
-            if docker network connect "$proxy_network" nginx-proxy-manager; then
-                log "已将现有 nginx-proxy-manager 接入 Docker 网络：$proxy_network"
+        if ! printf '%s' "$existing_networks" | grep -Fq "\"$docker_network\""; then
+            if docker network connect "$docker_network" nginx-proxy-manager; then
+                log "已将现有 nginx-proxy-manager 接入 Docker 网络：$docker_network"
             else
-                warn "无法将现有 nginx-proxy-manager 接入 Docker 网络：$proxy_network"
+                warn "无法将现有 nginx-proxy-manager 接入 Docker 网络：$docker_network"
             fi
         fi
         if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
@@ -638,7 +660,7 @@ install_nginx_proxy_manager() {
             grep -Fq '"443:4443"' "$compose_file" &&
             grep -Fq "./config:/config" "$compose_file" &&
             grep -Fq "host.docker.internal:host-gateway" "$compose_file" &&
-            grep -Fq "name: $proxy_network" "$compose_file"; then
+            grep -Fq "name: $docker_network" "$compose_file"; then
             warn "已发现现有配置：$compose_file"
             log "将使用现有配置启动 nginx-proxy-manager"
         else
@@ -648,6 +670,9 @@ install_nginx_proxy_manager() {
         fi
     fi
     if [ ! -f "$compose_file" ]; then
+        if ! ensure_docker_network; then
+            return 1
+        fi
         cat > "$compose_file" <<EOF
 services:
   app:
@@ -661,12 +686,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - $proxy_network
+      - $docker_network
     volumes:
       - ./config:/config
 networks:
-  $proxy_network:
-    name: $proxy_network
+  $docker_network:
+    name: $docker_network
 EOF
         log "已生成 Docker Compose 配置：$compose_file"
     fi
