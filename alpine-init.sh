@@ -9,6 +9,7 @@ SKIP_UPGRADE=0
 SKIP_DOCKER=0
 DOCKER_MIRRORS=""
 ACTION=""
+NGINX_PROXY_MANAGER_IMAGE="jlesage/nginx-proxy-manager:v26.08.2"
 
 log() {
     printf '\033[1;32m[INFO]\033[0m %s\n' "$*"
@@ -185,12 +186,12 @@ show_action_menu() {
     printf "  6) 更新系统(内核/发行版)\n"
     printf "  7) 安装基础软件\n"
     printf "  8) 安装常用软件\n"
-    printf "  9) 查看系统配置\n"
-    printf " 10) 启用 tun 模块\n"
-    printf " 11) 安装 Docker/Compose\t[当前：%s]\n" "$(docker_install_status)"
-    printf " 12) 配置 Docker 镜像加速\n"
-    printf " 13) 安装常用容器\n"
-    printf " 14) 管理 Docker 容器\n"
+    printf "  9) 启用 tun 模块\n"
+    printf " 10) 安装 Docker/Compose\t[当前：%s]\n" "$(docker_install_status)"
+    printf " 11) 配置 Docker 镜像加速\n"
+    printf " 12) 安装常用容器\n"
+    printf " 13) 管理 Docker 容器\n"
+    printf " 14) 查看系统配置\n"
     printf " 15) 调整时区\n"
     printf " 16) 调整主机名\n"
     printf " 17) 重启服务器\n"
@@ -571,13 +572,13 @@ install_nginx_proxy_manager() {
     compose_file="$container_dir/docker-compose.yml"
 
     if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，请先执行第 11 项安装 Docker / Compose"
+        warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
         return 1
     fi
 
     compose_command="$(docker_compose_command || true)"
     if [ -z "$compose_command" ]; then
-        warn "未找到 Docker Compose，请先执行第 11 项安装 Docker / Compose"
+        warn "未找到 Docker Compose，请先执行第 10 项安装 Docker / Compose"
         return 1
     fi
 
@@ -588,6 +589,20 @@ install_nginx_proxy_manager() {
 
     existing_container="$(docker ps -a --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null || true)"
     if [ -n "$existing_container" ]; then
+        existing_image="$(docker inspect --format '{{.Config.Image}}' nginx-proxy-manager 2>/dev/null || true)"
+        if [ "$existing_image" != "$NGINX_PROXY_MANAGER_IMAGE" ]; then
+            warn "已存在 nginx-proxy-manager 容器，但镜像不是 $NGINX_PROXY_MANAGER_IMAGE"
+            warn "当前镜像：$existing_image，未自动替换；请先在第 13 项删除旧容器，再重新部署"
+            return 1
+        fi
+        existing_ports="$(docker inspect --format '{{json .HostConfig.PortBindings}}' nginx-proxy-manager 2>/dev/null || true)"
+        if ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"80"' ||
+            ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"81"' ||
+            ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"443"'; then
+            warn "已存在 nginx-proxy-manager 容器，但未接管宿主机 80/81/443 端口"
+            warn "当前端口映射：$existing_ports，请先在第 13 项删除旧容器，再重新部署"
+            return 1
+        fi
         if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
             log "nginx-proxy-manager 已经在运行，跳过重复部署"
             show_nginx_proxy_manager_address
@@ -598,24 +613,34 @@ install_nginx_proxy_manager() {
         return 0
     fi
 
-    mkdir -p "$container_dir/data" "$container_dir/letsencrypt"
+    mkdir -p "$container_dir/config"
     if [ -f "$compose_file" ]; then
-        warn "已发现现有配置：$compose_file"
-        log "将使用现有配置启动 nginx-proxy-manager"
-    else
-        cat > "$compose_file" <<'EOF'
+        if grep -Fq "image: $NGINX_PROXY_MANAGER_IMAGE" "$compose_file" &&
+            grep -Fq '"80:8080"' "$compose_file" &&
+            grep -Fq '"81:8181"' "$compose_file" &&
+            grep -Fq '"443:4443"' "$compose_file" &&
+            grep -Fq "./config:/config" "$compose_file"; then
+            warn "已发现现有配置：$compose_file"
+            log "将使用现有配置启动 nginx-proxy-manager"
+        else
+            compose_backup="$compose_file.bak.$(date +%Y%m%d%H%M%S)"
+            mv "$compose_file" "$compose_backup"
+            warn "现有 Compose 配置与当前镜像不匹配，已备份到 $compose_backup"
+        fi
+    fi
+    if [ ! -f "$compose_file" ]; then
+        cat > "$compose_file" <<EOF
 services:
   app:
-    image: jc21/nginx-proxy-manager:latest
+    image: $NGINX_PROXY_MANAGER_IMAGE
     container_name: nginx-proxy-manager
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "81:81"
-      - "443:443"
+      - "80:8080"
+      - "81:8181"
+      - "443:4443"
     volumes:
-      - ./data:/data
-      - ./letsencrypt:/etc/letsencrypt
+      - ./config:/config
 EOF
         log "已生成 Docker Compose 配置：$compose_file"
     fi
@@ -630,8 +655,7 @@ EOF
         log "nginx-proxy-manager 已启动"
         show_nginx_proxy_manager_address
         log "首次登录默认账号：admin@example.com，默认密码：changeme，请立即修改"
-        log "数据目录：$container_dir/data"
-        log "证书目录：$container_dir/letsencrypt"
+        log "数据目录：$container_dir/config（映射到容器 /config）"
     else
         warn "容器已尝试启动，但状态检查失败"
         return 1
@@ -667,10 +691,11 @@ install_common_docker_containers() {
                 printf "\n----------------------------------------\n"
                 printf "部署确认：nginx-proxy-manager\n"
                 printf "----------------------------------------\n"
-                printf "  镜像：jc21/nginx-proxy-manager:latest\n"
-                printf "  端口：80（HTTP）、81（管理面板）、443（HTTPS）\n"
-                printf "  数据：/opt/nginx-proxy-manager/data\n"
-                printf "  证书：/opt/nginx-proxy-manager/letsencrypt\n"
+                printf "  镜像：%s\n" "$NGINX_PROXY_MANAGER_IMAGE"
+                printf "  宿主机 80 -> 容器 8080（HTTP）\n"
+                printf "  宿主机 81 -> 容器 8181（管理面板）\n"
+                printf "  宿主机 443 -> 容器 4443（HTTPS）\n"
+                printf "  数据：/opt/nginx-proxy-manager/config（映射到容器 /config）\n"
                 install_nginx_proxy_manager
                 return
                 ;;
@@ -687,7 +712,7 @@ install_common_docker_containers() {
 
 manage_docker_containers() {
     if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，请先执行第 11 项安装 Docker / Compose"
+        warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
         return 1
     fi
 
@@ -792,7 +817,7 @@ manage_docker_containers() {
                         if docker rm -f "$selected_container"; then
                             log "容器已删除：$selected_container"
                             if [ "$selected_container" = "nginx-proxy-manager" ]; then
-                                log "nginx-proxy-manager 配置和数据目录仍保留，可从第 13 项重新部署"
+                                log "nginx-proxy-manager 配置和数据目录仍保留，可从第 12 项重新部署"
                             fi
                         else
                             warn "容器删除失败：$selected_container"
@@ -2060,19 +2085,16 @@ execute_action() {
             install_common_software
             ;;
         9)
-            view_system_config
-            ;;
-        10)
             enable_tun
             ;;
-        11)
+        10)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：安装 Docker / Compose"
             else
                 install_docker
             fi
             ;;
-        12)
+        11)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：配置 Docker 镜像加速"
             else
@@ -2080,19 +2102,22 @@ execute_action() {
                 detect_docker_mirror
             fi
             ;;
-        13)
+        12)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：安装常用 Docker 容器"
             else
                 install_common_docker_containers
             fi
             ;;
-        14)
+        13)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：管理 Docker 容器"
             else
                 manage_docker_containers
             fi
+            ;;
+        14)
+            view_system_config
             ;;
         15)
             configure_timezone
@@ -2110,10 +2135,10 @@ execute_action() {
 }
 
 run_all_actions() {
-    for action in 1 4 5 6 7 8 9 10 11 12; do
+    for action in 1 4 5 6 7 8 9 10 11 14; do
         execute_action "$action"
     done
-    warn "SSH、Swap / zswap、常用 Docker 容器、Docker 容器管理、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、13、14、15、16、17 项"
+    warn "SSH、Swap / zswap、常用 Docker 容器、Docker 容器管理、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、12、13、15、16、17 项"
 }
 
 pause_before_menu() {

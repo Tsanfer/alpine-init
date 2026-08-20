@@ -105,7 +105,22 @@ fi
 
 | 容器 | 作用 | 镜像 | 端口 | 数据目录 |
 | --- | --- | --- | --- | --- |
-| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80`<br>HTTP<br><br>`81`<br>管理面板<br><br>`443`<br>HTTPS | `/opt/nginx-proxy-manager/data`<br>应用数据<br><br>`/opt/nginx-proxy-manager/letsencrypt`<br>SSL 证书 |
+| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jlesage/nginx-proxy-manager:v26.08.2` | `80`<br>HTTP<br>容器 `8080`<br><br>`81`<br>管理面板<br>容器 `8181`<br><br>`443`<br>HTTPS<br>容器 `4443` | `/opt/nginx-proxy-manager/config`<br>应用配置<br>状态<br>日志<br>持久化文件 |
+
+nginx-proxy-manager 使用固定版本 v26.08.2，避免 latest 标签变更导致重复执行脚本时安装到不同版本。该镜像为非官方镜像，容器内部端口为 8080、8181、4443，脚本将它们分别映射到宿主机 80、81、443，因此管理面板地址为 http://服务器IP:81。升级时请先确认新版本兼容数据，再修改脚本顶部的 NGINX_PROXY_MANAGER_IMAGE 和现有 Compose 文件中的镜像版本。
+
+### 从 Internet 访问
+
+Docker 端口映射不会自动配置路由器或云防火墙。服务器位于路由器内网时，需要设置端口转发：
+
+| 外部端口 | 转发到服务器端口 | 用途 |
+| --- | --- | --- |
+| `80` | `80` | HTTP |
+| `443` | `443` | HTTPS |
+
+如果服务器使用云主机，还需要在安全组或防火墙中放行 `80/tcp` 和 `443/tcp`。管理面板端口 `81` 不建议直接暴露到 Internet，建议仅通过内网、VPN 或来源 IP 白名单访问。
+
+路由器端口转发的目标地址应为运行 Docker 容器的服务器内网 IP。若宿主机已有其他程序占用 `80` 或 `443`，需要先停止该程序，或修改 Compose 中的宿主机端口并同步调整路由器转发。
 
 ## 命令参数
 
