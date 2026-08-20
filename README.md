@@ -66,12 +66,12 @@ fi
 | 6 | 更新 Alpine 系统，包括内核和发行版 |
 | 7 | 安装基础软件 |
 | 8 | 安装常用软件 |
-| 9 | 查看系统配置 |
-| 10 | 启用 tun 内核模块 |
-| 11 | 安装 Docker / Compose |
-| 12 | 配置 Docker 镜像加速并自动检测 |
-| 13 | 安装常用 Docker 容器 |
-| 14 | 管理 Docker 容器 |
+| 9 | 启用 tun 内核模块 |
+| 10 | 安装 Docker / Compose |
+| 11 | 配置 Docker 镜像加速并自动检测 |
+| 12 | 安装常用 Docker 容器 |
+| 13 | 管理 Docker 容器 |
+| 14 | 查看系统配置 |
 | 15 | 调整时区 |
 | 16 | 调整主机名 |
 | 17 | 重启服务器 |
@@ -79,25 +79,25 @@ fi
 
 ### 基础软件
 
-| 软件 | 作用 | 说明 |
+| 软件 | 作用 | 命令 |
 | --- | --- | --- |
-| `curl` | HTTP/HTTPS 下载和接口调用 | 直接提供 `curl` 命令 |
-| `bash` | 功能更完整的 Shell | 直接提供 `bash` 命令 |
-| `jq` | 处理 JSON | 直接提供 `jq` 命令 |
-| `wget` | 文件下载 | 直接提供 `wget` 命令 |
-| `git` | 版本控制 | 直接提供 `git` 命令 |
-| `vim` | 终端编辑器 | 直接提供 `vim` 命令 |
-| `bottom` | 终端系统监控 | 命令为 `btm` |
-| `tmux` | 终端会话管理 | 直接提供 `tmux` 命令 |
-| `unzip` | 解压 ZIP 文件 | 直接提供 `unzip` 命令 |
-| `fastfetch` | 查看系统和硬件信息 | 直接提供 `fastfetch` 命令 |
+| `curl` | HTTP/HTTPS 下载和接口调用 | `curl` |
+| `bash` | 功能更完整的 Shell | `bash` |
+| `jq` | 处理 JSON | `jq` |
+| `wget` | 文件下载 | `wget` |
+| `git` | 版本控制 | `git` |
+| `vim` | 终端编辑器 | `vim` |
+| `bottom` | 终端系统监控 | `btm` |
+| `tmux` | 终端会话管理 | `tmux` |
+| `unzip` | 解压 ZIP 文件 | `unzip` |
+| `fastfetch` | 查看系统和硬件信息 | `fastfetch` |
 
 ### 常用软件
 
-| 软件 | 作用 | 实际安装的软件包 |
+| 软件 | 作用 | 命令 |
 | --- | --- | --- |
-| `npx` | Node.js 包执行工具 | Alpine `npm` |
-| `pip3` | Python 3 软件包安装工具 | Alpine `py3-pip` |
+| `npx` | Node.js 包执行工具 | `npx` |
+| `pip3` | Python 3 软件包安装工具 | `pip3` |
 
 国内环境安装完成后会自动配置软件源。
 
@@ -105,11 +105,13 @@ fi
 
 | 容器 | 作用 | 镜像 | 端口 | 数据目录 |
 | --- | --- | --- | --- | --- |
-| `nginx-proxy-manager` | Web 反向代理、SSL 证书和域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP、`81` 管理面板、`443` HTTPS | `/opt/nginx-proxy-manager/data`、`/opt/nginx-proxy-manager/letsencrypt` |
+| `nginx-proxy-manager` | Web 反向代理<br>SSL 证书<br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP<br>`81` 管理面板<br>`443` HTTPS | `/opt/nginx-proxy-manager/data`<br>`/opt/nginx-proxy-manager/letsencrypt` |
 
 安装完成后脚本会自动检测服务器 IP，并显示管理面板地址（端口 `81`）。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。
 
-第 14 项用于管理已有 Docker 容器，可选择启动、停止、重启或删除容器。删除操作需要再次确认，只删除容器本身，不会自动删除数据卷或绑定目录。
+第 13 项用于管理已有 Docker 容器，可选择启动、停止、重启或删除容器。删除操作需要再次确认，只删除容器本身，不会自动删除数据卷或绑定目录。
+
+第 14 项用于查看系统配置。若未安装 fastfetch，脚本会先从 Alpine 官方仓库安装，然后显示系统信息。
 
 ## 命令参数
 
