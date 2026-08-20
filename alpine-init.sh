@@ -501,15 +501,6 @@ docker_install_status() {
 }
 
 install_docker_panel() {
-    if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
-        return 1
-    fi
-    if ! docker info >/dev/null 2>&1; then
-        warn "Docker 服务未运行或当前用户无权访问 Docker"
-        return 1
-    fi
-
     panel_tools=""
     command -v bash >/dev/null 2>&1 || panel_tools="$panel_tools bash"
     command -v curl >/dev/null 2>&1 || panel_tools="$panel_tools curl"
@@ -527,7 +518,7 @@ install_docker_panel() {
     fi
 
     log "启动 DPanel 官方安装器"
-    if ! curl -fsSL https://dpanel.cc/quick.sh | bash; then
+    if ! curl -sSL https://dpanel.cc/quick.sh | bash; then
         warn "DPanel 安装失败，请查看上方输出或参考：https://dpanel.cc/install/shell"
         return 1
     fi
@@ -1802,11 +1793,7 @@ execute_action() {
             fi
             ;;
         12)
-            if [ "$SKIP_DOCKER" -eq 1 ]; then
-                warn "按参数跳过：安装 Docker 面板"
-            else
-                install_docker_panel
-            fi
+            install_docker_panel
             ;;
         13)
             view_system_config

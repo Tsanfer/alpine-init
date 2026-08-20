@@ -110,7 +110,7 @@ fi
 curl -sSL https://dpanel.cc/quick.sh | bash
 ~~~
 
-DPanel 安装器支持安装、更新和卸载。执行前请确认 Docker 已安装并运行，当前用户具有 Docker Socket 操作权限；安装后的访问端口和登录信息以 DPanel 输出为准。
+DPanel 安装器支持安装、更新和卸载，并会自行处理 Docker 安装。安装后的访问端口和登录信息以 DPanel 输出为准。
 
 ## 命令参数
 
