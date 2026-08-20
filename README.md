@@ -102,16 +102,6 @@ fi
 
 国内环境安装完成后会自动配置软件源。
 
-### Docker 管理面板
-
-第 12 项会调用 DPanel 官方安装器。也可以按 [DPanel 官方安装文档](https://dpanel.cc/install/shell) 手动安装：
-
-~~~sh
-curl -sSL https://dpanel.cc/quick.sh | bash
-~~~
-
-DPanel 安装器支持安装、更新和卸载，并会自行处理 Docker 安装。安装后的访问端口和登录信息以 DPanel 输出为准。
-
 ## 命令参数
 
 ~~~text
