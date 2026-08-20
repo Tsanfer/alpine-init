@@ -105,7 +105,7 @@ fi
 
 | 容器 | 作用 | 镜像 | 端口 | 数据目录 |
 | --- | --- | --- | --- | --- |
-| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP<br><br>`81` 管理面板<br><br>`443` HTTPS | `/opt/nginx-proxy-manager/data`<br><br>`/opt/nginx-proxy-manager/letsencrypt` |
+| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80`<br>HTTP<br><br>`81`<br>管理面板<br><br>`443`<br>HTTPS | `/opt/nginx-proxy-manager/data`<br>应用数据<br><br>`/opt/nginx-proxy-manager/letsencrypt`<br>SSL 证书 |
 
 ## 命令参数
 
