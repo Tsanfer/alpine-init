@@ -805,6 +805,8 @@ install_base_software() {
     print_package_item 8 tmux "终端会话管理" tmux
     print_package_item 9 unzip "解压 ZIP 文件" unzip
     print_package_item 10 fastfetch "查看系统信息和硬件配置" fastfetch
+    print_package_item 11 tar "打包和解包归档文件" tar
+    print_package_item 12 gzip "Gzip 压缩和解压" gzip
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
@@ -830,7 +832,7 @@ install_base_software() {
 
         case "$common_input" in
             all|ALL|a|A)
-                common_choices="1 2 3 4 5 6 7 8 9 10"
+                common_choices="1 2 3 4 5 6 7 8 9 10 11 12"
                 ;;
             *)
                 case "$common_input" in
@@ -861,6 +863,8 @@ install_base_software() {
                 8) add_common_package 8 tmux "终端会话管理" ;;
                 9) add_common_package 9 unzip "解压 ZIP 文件" ;;
                 10) add_common_package 10 fastfetch "查看系统信息和硬件配置" ;;
+                11) add_common_package 11 tar "打包和解包归档文件" ;;
+                12) add_common_package 12 gzip "Gzip 压缩和解压" ;;
                 *)
                     warn "无效软件编号：$common_choice"
                     common_invalid=1

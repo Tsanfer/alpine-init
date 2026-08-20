@@ -90,6 +90,8 @@ fi
 | `tmux` | 终端会话管理 | `tmux` |
 | `unzip` | 解压 ZIP 文件 | `unzip` |
 | `fastfetch` | 查看系统和硬件信息 | `fastfetch` |
+| `tar` | 打包和解包归档文件 | `tar` |
+| `gzip` | Gzip 压缩和解压 | `gzip` |
 
 ### 常用软件
 
