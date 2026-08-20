@@ -570,6 +570,7 @@ show_nginx_proxy_manager_address() {
 install_nginx_proxy_manager() {
     container_dir="/opt/nginx-proxy-manager"
     compose_file="$container_dir/docker-compose.yml"
+    proxy_network="proxy"
 
     if ! command -v docker >/dev/null 2>&1; then
         warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
@@ -603,6 +604,22 @@ install_nginx_proxy_manager() {
             warn "当前端口映射：$existing_ports，请先在第 13 项删除旧容器，再重新部署"
             return 1
         fi
+        if ! docker network inspect "$proxy_network" >/dev/null 2>&1; then
+            if docker network create "$proxy_network" >/dev/null; then
+                log "已创建 Docker 网络：$proxy_network"
+            else
+                warn "Docker 网络创建失败：$proxy_network"
+                return 1
+            fi
+        fi
+        existing_networks="$(docker inspect --format '{{json .NetworkSettings.Networks}}' nginx-proxy-manager 2>/dev/null || true)"
+        if ! printf '%s' "$existing_networks" | grep -Fq '"'"$proxy_network"'"'; then
+            if docker network connect "$proxy_network" nginx-proxy-manager; then
+                log "已将现有 nginx-proxy-manager 接入 Docker 网络：$proxy_network"
+            else
+                warn "无法将现有 nginx-proxy-manager 接入 Docker 网络：$proxy_network"
+            fi
+        fi
         if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
             log "nginx-proxy-manager 已经在运行，跳过重复部署"
             show_nginx_proxy_manager_address
@@ -619,7 +636,9 @@ install_nginx_proxy_manager() {
             grep -Fq '"80:8080"' "$compose_file" &&
             grep -Fq '"81:8181"' "$compose_file" &&
             grep -Fq '"443:4443"' "$compose_file" &&
-            grep -Fq "./config:/config" "$compose_file"; then
+            grep -Fq "./config:/config" "$compose_file" &&
+            grep -Fq "host.docker.internal:host-gateway" "$compose_file" &&
+            grep -Fq "name: $proxy_network" "$compose_file"; then
             warn "已发现现有配置：$compose_file"
             log "将使用现有配置启动 nginx-proxy-manager"
         else
@@ -639,8 +658,15 @@ services:
       - "80:8080"
       - "81:8181"
       - "443:4443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - $proxy_network
     volumes:
       - ./config:/config
+networks:
+  $proxy_network:
+    name: $proxy_network
 EOF
         log "已生成 Docker Compose 配置：$compose_file"
     fi

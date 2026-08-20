@@ -122,6 +122,25 @@ Docker 端口映射不会自动配置路由器或云防火墙。服务器位于�
 
 路由器端口转发的目标地址应为运行 Docker 容器的服务器内网 IP。若宿主机已有其他程序占用 `80` 或 `443`，需要先停止该程序，或修改 Compose 中的宿主机端口并同步调整路由器转发。
 
+### 连接宿主机和其他 Docker 服务
+
+脚本使用默认 bridge 网络，并为 nginx-proxy-manager 创建固定名称的 Docker 网络 `proxy`，不使用 host 模式。需要被反向代理的其他 Docker 容器，可以加入该网络：
+
+~~~yaml
+services:
+  app:
+    image: your-app
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+~~~
+
+在 NPM 中将代理目标填写为 `http://app:容器端口`。宿主机上的服务可以使用 `http://host.docker.internal:服务端口`，但服务不能只监听 `127.0.0.1`，需要监听宿主机可供 Docker 访问的地址，例如 `0.0.0.0`，并按需配置防火墙。
+
 ## 命令参数
 
 ~~~text
