@@ -835,16 +835,56 @@ configure_bottom() {
     fi
 
     bottom_config_tmp="$(mktemp)"
-    {
-        if [ -f "$bottom_config" ]; then
-            grep -vE '^[[:space:]]*(enable_cache_memory|network_use_bytes|process_command)[[:space:]]*=' "$bottom_config" || true
-        fi
-        printf 'enable_cache_memory = true\n'
-        printf 'network_use_bytes = true\n'
-        printf 'process_command = true\n'
-    } > "$bottom_config_tmp"
+    if [ -f "$bottom_config" ]; then
+        awk '
+            function print_flags() {
+                print "enable_cache_memory = true"
+                print "network_use_bytes = true"
+                print "process_command = true"
+            }
+            /^[[:space:]]*\[flags\][[:space:]]*$/ {
+                print
+                in_flags = 1
+                found_flags = 1
+                next
+            }
+            /^[[:space:]]*\[/ {
+                if (in_flags && !inserted) {
+                    print_flags()
+                    inserted = 1
+                }
+                in_flags = 0
+                print
+                next
+            }
+            /^[[:space:]]*(enable_cache_memory|network_use_bytes|process_command)[[:space:]]*=/ {
+                next
+            }
+            {
+                print
+            }
+            END {
+                if (in_flags && !inserted) {
+                    print_flags()
+                    inserted = 1
+                }
+                if (!found_flags) {
+                    print ""
+                    print "[flags]"
+                    print_flags()
+                }
+            }
+        ' "$bottom_config" > "$bottom_config_tmp"
+    else
+        {
+            printf '[flags]\n'
+            printf 'enable_cache_memory = true\n'
+            printf 'network_use_bytes = true\n'
+            printf 'process_command = true\n'
+        } > "$bottom_config_tmp"
+    fi
     mv "$bottom_config_tmp" "$bottom_config"
-    log "已配置 bottom：$bottom_config"
+    log "已写入 bottom 配置：[flags] -> $bottom_config"
 }
 
 install_bottom() {
