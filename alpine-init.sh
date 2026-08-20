@@ -830,12 +830,50 @@ configure_npm_pypi_mirrors() {
     fi
 }
 
+onepanel_is_installed() {
+    command -v 1pctl >/dev/null 2>&1 || [ -x /usr/bin/1pctl ] || [ -x /usr/local/bin/1pctl ]
+}
+
+install_onepanel() {
+    if onepanel_is_installed; then
+        log "1Panel 已安装，跳过重复安装"
+        return 0
+    fi
+
+    warn "1Panel 官方文档主要支持基于 Debian / RedHat 的发行版，Alpine 可能不受支持"
+    panel_tools=""
+    command -v bash >/dev/null 2>&1 || panel_tools="$panel_tools bash"
+    command -v curl >/dev/null 2>&1 || panel_tools="$panel_tools curl"
+    [ -f /etc/ssl/certs/ca-certificates.crt ] || panel_tools="$panel_tools ca-certificates"
+    if [ -n "$panel_tools" ]; then
+        log "安装 1Panel 所需工具：$panel_tools"
+        if ! apk add --no-cache $panel_tools; then
+            warn "1Panel 所需工具安装失败"
+            return 1
+        fi
+        update-ca-certificates >/dev/null 2>&1 || true
+    fi
+
+    log "启动 1Panel 官方在线安装器"
+    if ! bash -c "$(curl -sSL https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh)"; then
+        warn "1Panel 安装失败，请参考：https://1panel.cn/docs/v2/installation/online_installation/"
+        return 1
+    fi
+}
+
 install_common_software() {
     printf "\n----------------------------------------\n"
     printf "常用软件\n"
     printf "----------------------------------------\n"
     print_package_item 1 npx "Node.js 包执行工具" npm
     print_package_item 2 pip3 "Python 3 包管理工具" py3-pip
+    if onepanel_is_installed; then
+        printf "  %2s) %-10s\t%s" "3" "1panel" "Linux 服务器运维管理面板"
+        print_status_column 48 17 "Linux 服务器运维管理面板" "✅ 已安装"
+    else
+        printf "  %2s) %-10s\t%s" "3" "1panel" "Linux 服务器运维管理面板"
+        print_status_column 48 17 "Linux 服务器运维管理面板" "⬜ 待安装"
+    fi
 
     while :; do
         if [ "$ASSUME_YES" -eq 1 ]; then
@@ -861,7 +899,7 @@ install_common_software() {
 
         case "$common_input" in
             all|ALL|a|A)
-                common_choices="1 2"
+                common_choices="1 2 3"
                 ;;
             *)
                 case "$common_input" in
@@ -877,6 +915,7 @@ install_common_software() {
         common_packages=""
         common_npm=0
         common_pip3=0
+        common_1panel=0
         common_invalid=0
         printf "\n本次处理清单（已安装项自动跳过）：\n"
         for common_choice in $common_choices; do
@@ -911,6 +950,15 @@ install_common_software() {
                         print_status_column 48 17 "Python 3 包管理工具" "⬜ 待安装"
                     fi
                     ;;
+                3)
+                    common_1panel=1
+                    printf "  - %-10s\t%s" "1panel" "Linux 服务器运维管理面板"
+                    if onepanel_is_installed; then
+                        print_status_column 48 17 "Linux 服务器运维管理面板" "✅ 已安装"
+                    else
+                        print_status_column 48 17 "Linux 服务器运维管理面板" "⬜ 待安装"
+                    fi
+                    ;;
                 *)
                     warn "无效软件编号：$common_choice"
                     common_invalid=1
@@ -919,7 +967,7 @@ install_common_software() {
         done
 
         if [ "$common_invalid" -eq 0 ] && {
-            [ -n "$common_packages" ] || [ "$common_npm" -eq 1 ] || [ "$common_pip3" -eq 1 ];
+            [ -n "$common_packages" ] || [ "$common_npm" -eq 1 ] || [ "$common_pip3" -eq 1 ] || [ "$common_1panel" -eq 1 ];
         }; then
             break
         fi
@@ -931,12 +979,17 @@ install_common_software() {
             warn "常用软件安装失败"
             return 1
         fi
-    else
+    elif [ "$common_1panel" -eq 0 ]; then
         log "所选常用软件均已安装，无需重复安装"
     fi
 
     if ! configure_npm_pypi_mirrors; then
         return 1
+    fi
+    if [ "$common_1panel" -eq 1 ]; then
+        if ! install_onepanel; then
+            return 1
+        fi
     fi
     log "常用软件处理完成"
 }
