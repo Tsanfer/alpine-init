@@ -19,7 +19,7 @@ sh -c "$(wget -qO- 'https://raw.githubusercontent.com/Tsanfer/alpine-init/main/a
 如果没有 wget，可将 `wget -qO- URL` 替换为 `curl -fsSL URL`。
 
 也可以使用下面的完整脚本，根据提示选择网络地址，并优先使用 wget，缺少 wget 时再使用 curl：
-~~~
+~~~sh
 printf "是否从国内代理拉取脚本？[Y/n] "
 read -r choice
 if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then
@@ -105,13 +105,7 @@ fi
 
 | 容器 | 作用 | 镜像 | 端口 | 数据目录 |
 | --- | --- | --- | --- | --- |
-| `nginx-proxy-manager` | Web 反向代理<br>SSL 证书<br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP<br>`81` 管理面板<br>`443` HTTPS | `/opt/nginx-proxy-manager/data`<br>`/opt/nginx-proxy-manager/letsencrypt` |
-
-安装完成后脚本会自动检测服务器 IP，并显示管理面板地址（端口 `81`）。首次登录默认账号为 `admin@example.com`，默认密码为 `changeme`，登录后请立即修改。
-
-第 13 项用于管理已有 Docker 容器，可选择启动、停止、重启或删除容器。删除操作需要再次确认，只删除容器本身，不会自动删除数据卷或绑定目录。
-
-第 14 项用于查看系统配置。若未安装 fastfetch，脚本会先从 Alpine 官方仓库安装，然后显示系统信息。
+| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jc21/nginx-proxy-manager:latest` | `80` HTTP<br><br>`81` 管理面板<br><br>`443` HTTPS | `/opt/nginx-proxy-manager/data`<br><br>`/opt/nginx-proxy-manager/letsencrypt` |
 
 ## 命令参数
 
