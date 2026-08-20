@@ -69,12 +69,11 @@ fi
 | 9 | 启用 tun 内核模块 |
 | 10 | 安装 Docker / Compose |
 | 11 | 配置 Docker 镜像加速并自动检测 |
-| 12 | 安装常用 Docker 容器 |
-| 13 | 管理 Docker 容器 |
-| 14 | 查看系统配置 |
-| 15 | 调整时区 |
-| 16 | 调整主机名 |
-| 17 | 重启服务器 |
+| 12 | 管理 Docker 容器 |
+| 13 | 查看系统配置 |
+| 14 | 调整时区 |
+| 15 | 调整主机名 |
+| 16 | 重启服务器 |
 | 0 | 退出（主菜单也支持 q） |
 
 ### 基础软件
@@ -101,45 +100,15 @@ fi
 
 国内环境安装完成后会自动配置软件源。
 
-### 常用 Docker 容器
+### Docker 管理面板
 
-| 容器 | 作用 | 镜像 | 端口 | 数据目录 |
-| --- | --- | --- | --- | --- |
-| `nginx-proxy-manager` | Web 反向代理<br><br>SSL 证书<br><br>域名管理 | `jlesage/nginx-proxy-manager:v26.08.2` | `80`<br>HTTP<br>容器 `8080`<br><br>`81`<br>管理面板<br>容器 `8181`<br><br>`443`<br>HTTPS<br>容器 `4443` | `/opt/nginx-proxy-manager/config`<br>应用配置<br>状态<br>日志<br>持久化文件 |
+脚本不内置常用 Docker 容器部署。需要图形化管理 Docker 时，可以按 [DPanel 官方安装文档](https://dpanel.cc/install/shell) 安装：
 
-nginx-proxy-manager 使用固定版本 v26.08.2，避免 latest 标签变更导致重复执行脚本时安装到不同版本。该镜像为非官方镜像，容器内部端口为 8080、8181、4443，脚本将它们分别映射到宿主机 80、81、443，因此管理面板地址为 http://服务器IP:81。升级时请先确认新版本兼容数据，再修改脚本顶部的 NGINX_PROXY_MANAGER_IMAGE 和现有 Compose 文件中的镜像版本。
-
-### 从 Internet 访问
-
-Docker 端口映射不会自动配置路由器或云防火墙。服务器位于路由器内网时，需要设置端口转发：
-
-| 外部端口 | 转发到服务器端口 | 用途 |
-| --- | --- | --- |
-| `80` | `80` | HTTP |
-| `443` | `443` | HTTPS |
-
-如果服务器使用云主机，还需要在安全组或防火墙中放行 `80/tcp` 和 `443/tcp`。管理面板端口 `81` 不建议直接暴露到 Internet，建议仅通过内网、VPN 或来源 IP 白名单访问。
-
-路由器端口转发的目标地址应为运行 Docker 容器的服务器内网 IP。若宿主机已有其他程序占用 `80` 或 `443`，需要先停止该程序，或修改 Compose 中的宿主机端口并同步调整路由器转发。
-
-### 连接宿主机和其他 Docker 服务
-
-脚本使用默认 bridge 网络，并在安装 Docker / Compose 后创建固定名称的共享 Docker 网络 `docker-net`，不使用 host 模式。需要被反向代理的其他 Docker 容器，可以加入该网络：
-
-~~~yaml
-services:
-  app:
-    image: your-app
-    networks:
-      - docker-net
-
-networks:
-  docker-net:
-    external: true
-    name: docker-net
+~~~sh
+curl -sSL https://dpanel.cc/quick.sh | bash
 ~~~
 
-在 NPM 中将代理目标填写为 `http://app:容器端口`。宿主机上的服务可以使用 `http://host.docker.internal:服务端口`，但服务不能只监听 `127.0.0.1`，需要监听宿主机可供 Docker 访问的地址，例如 `0.0.0.0`，并按需配置防火墙。
+DPanel 安装器支持安装、更新和卸载。执行前请确认 Docker 已安装并运行，当前用户具有 Docker Socket 操作权限；安装后的访问端口和登录信息以 DPanel 输出为准。
 
 ## 命令参数
 

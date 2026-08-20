@@ -9,7 +9,6 @@ SKIP_UPGRADE=0
 SKIP_DOCKER=0
 DOCKER_MIRRORS=""
 ACTION=""
-NGINX_PROXY_MANAGER_IMAGE="jlesage/nginx-proxy-manager:v26.08.2"
 
 log() {
     printf '\033[1;32m[INFO]\033[0m %s\n' "$*"
@@ -189,12 +188,11 @@ show_action_menu() {
     printf "  9) 启用 tun 模块\n"
     printf " 10) 安装 Docker/Compose\t[当前：%s]\n" "$(docker_install_status)"
     printf " 11) 配置 Docker 镜像加速\n"
-    printf " 12) 安装常用容器\n"
-    printf " 13) 管理 Docker 容器\n"
-    printf " 14) 查看系统配置\n"
-    printf " 15) 调整时区\n"
-    printf " 16) 调整主机名\n"
-    printf " 17) 重启服务器\n"
+    printf " 12) 管理 Docker 容器\n"
+    printf " 13) 查看系统配置\n"
+    printf " 14) 调整时区\n"
+    printf " 15) 调整主机名\n"
+    printf " 16) 重启服务器\n"
     printf "  0) 退出（也可输入 q）\n"
     printf "----------------------------------------\n"
 }
@@ -354,7 +352,6 @@ install_docker() {
 
     if command -v docker >/dev/null 2>&1 && docker_compose_command >/dev/null 2>&1; then
         log "Docker 和 Docker Compose 已安装，跳过重复安装"
-        ensure_docker_network
         return 0
     fi
 
@@ -362,32 +359,6 @@ install_docker() {
     if ! apk add --no-cache docker docker-cli docker-cli-compose; then
         warn "docker-cli-compose 安装失败，尝试旧包名 docker-compose"
         apk add --no-cache docker docker-cli docker-compose
-    fi
-    ensure_docker_network
-}
-
-ensure_docker_network() {
-    docker_network="docker-net"
-
-    if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，无法创建共享网络：$docker_network"
-        return 1
-    fi
-    if ! docker info >/dev/null 2>&1; then
-        warn "Docker 服务未运行或当前用户无权访问，无法创建共享网络：$docker_network"
-        return 1
-    fi
-
-    if docker network inspect "$docker_network" >/dev/null 2>&1; then
-        log "Docker 共享网络已存在：$docker_network"
-        return 0
-    fi
-
-    if docker network create --driver bridge "$docker_network" >/dev/null; then
-        log "已创建 Docker 共享网络：$docker_network"
-    else
-        warn "Docker 共享网络创建失败：$docker_network"
-        return 1
     fi
 }
 
@@ -529,238 +500,6 @@ docker_install_status() {
     fi
 }
 
-docker_container_status() {
-    if ! command -v docker >/dev/null 2>&1; then
-        printf "未安装 Docker"
-        return
-    fi
-
-    container_status="$(docker ps -a --filter 'name=^/nginx-proxy-manager$' --format '{{.Status}}' 2>/dev/null || true)"
-    if [ -z "$container_status" ]; then
-        if [ -f /opt/nginx-proxy-manager/docker-compose.yml ]; then
-            printf "⚠️ 已配置未启动"
-        else
-            printf "⬜ 未部署"
-        fi
-    elif printf '%s' "$container_status" | grep -q '^Up '; then
-        printf "✅ 已运行"
-    else
-        printf "⚠️ 已存在但未运行"
-    fi
-}
-
-detect_server_ip() {
-    detected_ip=""
-
-    if command -v ip >/dev/null 2>&1; then
-        detected_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{
-            for (i = 1; i <= NF; i++) {
-                if ($i == "src" && $(i + 1) ~ /^[0-9][0-9.]*$/) {
-                    print $(i + 1)
-                    exit
-                }
-            }
-        }')"
-    fi
-
-    if [ -z "$detected_ip" ] && command -v hostname >/dev/null 2>&1; then
-        detected_ip="$(hostname -I 2>/dev/null | awk '{
-            for (i = 1; i <= NF; i++) {
-                if ($i ~ /^[0-9][0-9.]*$/ && $i !~ /^127\./) {
-                    print $i
-                    exit
-                }
-            }
-        }')"
-    fi
-
-    if [ -z "$detected_ip" ] && command -v curl >/dev/null 2>&1; then
-        detected_ip="$(curl -4 -fsSL --max-time 3 https://api.ipify.org 2>/dev/null || true)"
-    fi
-
-    if [ -z "$detected_ip" ] && command -v wget >/dev/null 2>&1; then
-        detected_ip="$(wget -qO- -T 3 https://api.ipify.org 2>/dev/null || true)"
-    fi
-
-    printf '%s' "$detected_ip"
-}
-
-show_nginx_proxy_manager_address() {
-    manager_ip="$(detect_server_ip)"
-    if [ -n "$manager_ip" ]; then
-        log "管理面板地址：http://$manager_ip:81"
-    else
-        warn "未能自动检测服务器 IP，请手动访问：http://服务器IP:81"
-    fi
-}
-
-install_nginx_proxy_manager() {
-    container_dir="/opt/nginx-proxy-manager"
-    compose_file="$container_dir/docker-compose.yml"
-    docker_network="docker-net"
-
-    if ! command -v docker >/dev/null 2>&1; then
-        warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
-        return 1
-    fi
-
-    compose_command="$(docker_compose_command || true)"
-    if [ -z "$compose_command" ]; then
-        warn "未找到 Docker Compose，请先执行第 10 项安装 Docker / Compose"
-        return 1
-    fi
-
-    if ! docker info >/dev/null 2>&1; then
-        warn "Docker 服务未运行或当前用户无权访问 Docker"
-        return 1
-    fi
-
-    existing_container="$(docker ps -a --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null || true)"
-    if [ -n "$existing_container" ]; then
-        existing_image="$(docker inspect --format '{{.Config.Image}}' nginx-proxy-manager 2>/dev/null || true)"
-        if [ "$existing_image" != "$NGINX_PROXY_MANAGER_IMAGE" ]; then
-            warn "已存在 nginx-proxy-manager 容器，但镜像不是 $NGINX_PROXY_MANAGER_IMAGE"
-            warn "当前镜像：$existing_image，未自动替换；请先在第 13 项删除旧容器，再重新部署"
-            return 1
-        fi
-        existing_ports="$(docker inspect --format '{{json .HostConfig.PortBindings}}' nginx-proxy-manager 2>/dev/null || true)"
-        if ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"80"' ||
-            ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"81"' ||
-            ! printf '%s' "$existing_ports" | grep -Fq '"HostPort":"443"'; then
-            warn "已存在 nginx-proxy-manager 容器，但未接管宿主机 80/81/443 端口"
-            warn "当前端口映射：$existing_ports，请先在第 13 项删除旧容器，再重新部署"
-            return 1
-        fi
-        if ! ensure_docker_network; then
-            return 1
-        fi
-        existing_networks="$(docker inspect --format '{{json .NetworkSettings.Networks}}' nginx-proxy-manager 2>/dev/null || true)"
-        if ! printf '%s' "$existing_networks" | grep -Fq "\"$docker_network\""; then
-            if docker network connect "$docker_network" nginx-proxy-manager; then
-                log "已将现有 nginx-proxy-manager 接入 Docker 网络：$docker_network"
-            else
-                warn "无法将现有 nginx-proxy-manager 接入 Docker 网络：$docker_network"
-            fi
-        fi
-        if docker ps --filter 'name=^/nginx-proxy-manager$' --format '{{.Names}}' 2>/dev/null | grep -qx nginx-proxy-manager; then
-            log "nginx-proxy-manager 已经在运行，跳过重复部署"
-            show_nginx_proxy_manager_address
-        else
-            warn "已发现 nginx-proxy-manager 容器，但当前未运行，跳过重复创建"
-            log "如需启动，请执行：$compose_command -f $compose_file up -d"
-        fi
-        return 0
-    fi
-
-    mkdir -p "$container_dir/config"
-    if [ -f "$compose_file" ]; then
-        if grep -Fq "image: $NGINX_PROXY_MANAGER_IMAGE" "$compose_file" &&
-            grep -Fq '"80:8080"' "$compose_file" &&
-            grep -Fq '"81:8181"' "$compose_file" &&
-            grep -Fq '"443:4443"' "$compose_file" &&
-            grep -Fq "./config:/config" "$compose_file" &&
-            grep -Fq "host.docker.internal:host-gateway" "$compose_file" &&
-            grep -Fq "name: $docker_network" "$compose_file"; then
-            warn "已发现现有配置：$compose_file"
-            log "将使用现有配置启动 nginx-proxy-manager"
-        else
-            compose_backup="$compose_file.bak.$(date +%Y%m%d%H%M%S)"
-            mv "$compose_file" "$compose_backup"
-            warn "现有 Compose 配置与当前镜像不匹配，已备份到 $compose_backup"
-        fi
-    fi
-    if [ ! -f "$compose_file" ]; then
-        if ! ensure_docker_network; then
-            return 1
-        fi
-        cat > "$compose_file" <<EOF
-services:
-  app:
-    image: $NGINX_PROXY_MANAGER_IMAGE
-    container_name: nginx-proxy-manager
-    restart: unless-stopped
-    ports:
-      - "80:8080"
-      - "81:8181"
-      - "443:4443"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - $docker_network
-    volumes:
-      - ./config:/config
-networks:
-  $docker_network:
-    name: $docker_network
-EOF
-        log "已生成 Docker Compose 配置：$compose_file"
-    fi
-
-    log "启动 nginx-proxy-manager"
-    if ! $compose_command -f "$compose_file" up -d; then
-        warn "nginx-proxy-manager 启动失败，请检查 80、81、443 端口是否被占用"
-        return 1
-    fi
-
-    if $compose_command -f "$compose_file" ps; then
-        log "nginx-proxy-manager 已启动"
-        show_nginx_proxy_manager_address
-        log "首次登录默认账号：admin@example.com，默认密码：changeme，请立即修改"
-        log "数据目录：$container_dir/config（映射到容器 /config）"
-    else
-        warn "容器已尝试启动，但状态检查失败"
-        return 1
-    fi
-}
-
-install_common_docker_containers() {
-    printf "\n----------------------------------------\n"
-    printf "常用 Docker 容器\n"
-    printf "----------------------------------------\n"
-    container_description="反向代理与证书管理"
-    container_status="$(docker_container_status)"
-    printf "  1) %-24s\t%s" "nginx-proxy-manager" "$container_description"
-    print_status_column 72 33 "$container_description" "$container_status"
-
-    while :; do
-        if [ "$ASSUME_YES" -eq 1 ]; then
-            container_choice="1"
-            log "非交互模式，选择 nginx-proxy-manager"
-        else
-            printf "请输入编号（1 部署，0/q 返回）: "
-            read -r container_choice || container_choice="0"
-            if has_nonprintable_input "$container_choice"; then
-                continue
-            fi
-            if [ -z "$container_choice" ]; then
-                container_choice="0"
-            fi
-        fi
-
-        case "$container_choice" in
-            1)
-                printf "\n----------------------------------------\n"
-                printf "部署确认：nginx-proxy-manager\n"
-                printf "----------------------------------------\n"
-                printf "  镜像：%s\n" "$NGINX_PROXY_MANAGER_IMAGE"
-                printf "  宿主机 80 -> 容器 8080（HTTP）\n"
-                printf "  宿主机 81 -> 容器 8181（管理面板）\n"
-                printf "  宿主机 443 -> 容器 4443（HTTPS）\n"
-                printf "  数据：/opt/nginx-proxy-manager/config（映射到容器 /config）\n"
-                install_nginx_proxy_manager
-                return
-                ;;
-            0|q|Q)
-                log "已取消常用 Docker 容器安装"
-                return 2
-                ;;
-            *)
-                warn "无效容器编号：$container_choice"
-                ;;
-        esac
-    done
-}
-
 manage_docker_containers() {
     if ! command -v docker >/dev/null 2>&1; then
         warn "未找到 Docker，请先执行第 10 项安装 Docker / Compose"
@@ -867,9 +606,6 @@ manage_docker_containers() {
                     if [ "$confirm_delete" = "y" ] || [ "$confirm_delete" = "Y" ]; then
                         if docker rm -f "$selected_container"; then
                             log "容器已删除：$selected_container"
-                            if [ "$selected_container" = "nginx-proxy-manager" ]; then
-                                log "nginx-proxy-manager 配置和数据目录仍保留，可从第 12 项重新部署"
-                            fi
                         else
                             warn "容器删除失败：$selected_container"
                         fi
@@ -2155,28 +1891,21 @@ execute_action() {
             ;;
         12)
             if [ "$SKIP_DOCKER" -eq 1 ]; then
-                warn "按参数跳过：安装常用 Docker 容器"
-            else
-                install_common_docker_containers
-            fi
-            ;;
-        13)
-            if [ "$SKIP_DOCKER" -eq 1 ]; then
                 warn "按参数跳过：管理 Docker 容器"
             else
                 manage_docker_containers
             fi
             ;;
-        14)
+        13)
             view_system_config
             ;;
-        15)
+        14)
             configure_timezone
             ;;
-        16)
+        15)
             configure_hostname
             ;;
-        17)
+        16)
             reboot_server
             ;;
         *)
@@ -2189,7 +1918,7 @@ run_all_actions() {
     for action in 1 4 5 6 7 8 9 10 11 14; do
         execute_action "$action"
     done
-    warn "SSH、Swap / zswap、常用 Docker 容器、Docker 容器管理、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、12、13、15、16、17 项"
+    warn "SSH、Swap / zswap、Docker 容器管理、时区、主机名和重启需要交互输入，自动模式已跳过第 2、3、12、14、15、16 项"
 }
 
 pause_before_menu() {
@@ -2210,7 +1939,7 @@ menu_loop() {
                 log "退出初始化菜单"
                 break
                 ;;
-            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)
+            1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)
                 if execute_action "$ACTION"; then
                     action_status=0
                 else
